@@ -1,0 +1,16 @@
+[package]
+name = "jcim-core"
+version.workspace = true
+edition.workspace = true
+description = "Core runtime, CAP parsing, IPC, and configuration types for JCIM"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true

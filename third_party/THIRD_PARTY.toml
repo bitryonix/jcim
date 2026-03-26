@@ -1,0 +1,39 @@
+[gppro]
+name = "GlobalPlatformPro"
+version = "latest release matching commit 72f85b982c8eb2f0de34691a8c7e1771412a5349"
+artifact = "third_party/gppro/gp.jar"
+license = "LGPL-3.0-or-later"
+upstream = "https://github.com/martinpaljak/GlobalPlatformPro"
+notes = "Bundled so JCIM can power physical-card install, delete, package, and applet operations without requiring a separate GPPro install."
+
+[ecj]
+name = "Eclipse Compiler for Java"
+version = "3.38.0"
+artifact = "third_party/ecj/ecj.jar"
+license = "EPL-2.0"
+upstream = "https://repo1.maven.org/maven2/org/eclipse/jdt/ecj/"
+notes = "Bundled because Java Card source builds need an in-repo compiler that can still target the older classfile levels accepted by the Java Card converter."
+
+[ant_javacard]
+name = "ant-javacard"
+version = "latest release downloaded for the repo-bundled toolchain"
+artifact = "third_party/ant_javacard/ant-javacard.jar"
+license = "Apache-2.0"
+upstream = "https://github.com/martinpaljak/ant-javacard"
+notes = "Bundled for provenance and compatibility with the JCIM Java Card build toolchain."
+
+[javacard_sdks]
+name = "Java Card classic SDK bundle"
+version = "jc211, jc221, jc222, jc303, jc304, jc305u4"
+artifact = "third_party/javacard_sdks"
+license = "See Oracle Java Card SDK terms and provenance review before redistribution changes."
+upstream = "https://github.com/martinpaljak/oracle_javacard_sdks"
+notes = "Bundled to provide converter jars, export files, and API jars for source-first CAP builds across the supported classic profile family."
+
+[satochip_sources]
+name = "SatochipApplet source example"
+version = "pinned upstream commit 8cbaa1d6531df7e20c7a3d47d95766db51d9a136"
+artifact = "examples/satochip/workdir/src/main/javacard/org/satochip/applet"
+license = "Mixed upstream source headers, including LGPL-2.1-or-later and AGPL-3.0-or-later notices; review before redistribution changes."
+upstream = "https://github.com/Toporin/SatoChipApplet"
+notes = "Vendored so the JCIM Satochip example is source-backed and builds its CAP inside the repo."

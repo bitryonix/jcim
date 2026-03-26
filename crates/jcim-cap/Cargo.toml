@@ -1,0 +1,17 @@
+[package]
+name = "jcim-cap"
+version.workspace = true
+edition.workspace = true
+description = "CAP parsing and export validation for JCIM"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+flate2.workspace = true
+hex.workspace = true
+jcim-core = { path = "../jcim-core" }
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true

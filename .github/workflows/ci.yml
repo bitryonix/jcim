@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.1
+          components: clippy,rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo clippy --workspace --all-targets --all-features -- -W clippy::missing_docs_in_private_items
+      - run: cargo test --workspace --all-features
+      - run: cargo test --workspace --doc
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items

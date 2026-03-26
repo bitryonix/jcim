@@ -1,0 +1,682 @@
+syntax = "proto3";
+
+package jcim.v0_2;
+
+message Empty {}
+
+enum SimulationSourceKind {
+  SIMULATION_SOURCE_KIND_UNSPECIFIED = 0;
+  SIMULATION_SOURCE_KIND_PROJECT = 1;
+  SIMULATION_SOURCE_KIND_CAP = 2;
+}
+
+enum SimulationEngineMode {
+  SIMULATION_ENGINE_MODE_UNSPECIFIED = 0;
+  SIMULATION_ENGINE_MODE_NATIVE = 1;
+  SIMULATION_ENGINE_MODE_CONTAINER = 2;
+}
+
+enum SimulationStatus {
+  SIMULATION_STATUS_UNSPECIFIED = 0;
+  SIMULATION_STATUS_STARTING = 1;
+  SIMULATION_STATUS_RUNNING = 2;
+  SIMULATION_STATUS_STOPPED = 3;
+  SIMULATION_STATUS_FAILED = 4;
+}
+
+enum ApduEncoding {
+  APDU_ENCODING_UNSPECIFIED = 0;
+  APDU_ENCODING_SHORT = 1;
+  APDU_ENCODING_EXTENDED = 2;
+}
+
+enum CommandApduCase {
+  COMMAND_APDU_CASE_UNSPECIFIED = 0;
+  COMMAND_APDU_CASE_1 = 1;
+  COMMAND_APDU_CASE_2_SHORT = 2;
+  COMMAND_APDU_CASE_3_SHORT = 3;
+  COMMAND_APDU_CASE_4_SHORT = 4;
+  COMMAND_APDU_CASE_2_EXTENDED = 5;
+  COMMAND_APDU_CASE_3_EXTENDED = 6;
+  COMMAND_APDU_CASE_4_EXTENDED = 7;
+}
+
+enum CommandDomain {
+  COMMAND_DOMAIN_UNSPECIFIED = 0;
+  COMMAND_DOMAIN_ISO_7816 = 1;
+  COMMAND_DOMAIN_GLOBAL_PLATFORM = 2;
+  COMMAND_DOMAIN_OPAQUE = 3;
+}
+
+enum CommandKind {
+  COMMAND_KIND_UNSPECIFIED = 0;
+  COMMAND_KIND_SELECT = 1;
+  COMMAND_KIND_MANAGE_CHANNEL = 2;
+  COMMAND_KIND_GET_RESPONSE = 3;
+  COMMAND_KIND_READ_BINARY = 4;
+  COMMAND_KIND_WRITE_BINARY = 5;
+  COMMAND_KIND_UPDATE_BINARY = 6;
+  COMMAND_KIND_ERASE_BINARY = 7;
+  COMMAND_KIND_READ_RECORD = 8;
+  COMMAND_KIND_UPDATE_RECORD = 9;
+  COMMAND_KIND_APPEND_RECORD = 10;
+  COMMAND_KIND_SEARCH_RECORD = 11;
+  COMMAND_KIND_GET_DATA = 12;
+  COMMAND_KIND_PUT_DATA = 13;
+  COMMAND_KIND_VERIFY = 14;
+  COMMAND_KIND_CHANGE_REFERENCE_DATA = 15;
+  COMMAND_KIND_RESET_RETRY_COUNTER = 16;
+  COMMAND_KIND_INTERNAL_AUTHENTICATE = 17;
+  COMMAND_KIND_EXTERNAL_AUTHENTICATE = 18;
+  COMMAND_KIND_GET_CHALLENGE = 19;
+  COMMAND_KIND_ENVELOPE = 20;
+  COMMAND_KIND_GP_GET_STATUS = 21;
+  COMMAND_KIND_GP_SET_STATUS = 22;
+  COMMAND_KIND_GP_INITIALIZE_UPDATE = 23;
+  COMMAND_KIND_GP_EXTERNAL_AUTHENTICATE = 24;
+  COMMAND_KIND_OPAQUE = 25;
+}
+
+enum StatusWordClass {
+  STATUS_WORD_CLASS_UNSPECIFIED = 0;
+  STATUS_WORD_CLASS_NORMAL_PROCESSING = 1;
+  STATUS_WORD_CLASS_WARNING = 2;
+  STATUS_WORD_CLASS_EXECUTION_ERROR = 3;
+  STATUS_WORD_CLASS_CHECKING_ERROR = 4;
+  STATUS_WORD_CLASS_UNKNOWN = 5;
+}
+
+enum TransmissionConvention {
+  TRANSMISSION_CONVENTION_UNSPECIFIED = 0;
+  TRANSMISSION_CONVENTION_DIRECT = 1;
+  TRANSMISSION_CONVENTION_INVERSE = 2;
+}
+
+enum TransportProtocol {
+  TRANSPORT_PROTOCOL_UNSPECIFIED = 0;
+  TRANSPORT_PROTOCOL_T0 = 1;
+  TRANSPORT_PROTOCOL_T1 = 2;
+  TRANSPORT_PROTOCOL_T2 = 3;
+  TRANSPORT_PROTOCOL_T3 = 4;
+  TRANSPORT_PROTOCOL_T14 = 5;
+  TRANSPORT_PROTOCOL_OTHER = 6;
+}
+
+enum PowerState {
+  POWER_STATE_UNSPECIFIED = 0;
+  POWER_STATE_OFF = 1;
+  POWER_STATE_ON = 2;
+}
+
+enum SecureMessagingProtocol {
+  SECURE_MESSAGING_PROTOCOL_UNSPECIFIED = 0;
+  SECURE_MESSAGING_PROTOCOL_ISO_7816 = 1;
+  SECURE_MESSAGING_PROTOCOL_SCP02 = 2;
+  SECURE_MESSAGING_PROTOCOL_SCP03 = 3;
+  SECURE_MESSAGING_PROTOCOL_OTHER = 4;
+}
+
+message AidInfo {
+  bytes raw = 1;
+  string hex = 2;
+}
+
+message FileSelectionInfo {
+  oneof selection {
+    bytes by_name = 1;
+    uint32 file_id = 2;
+    bytes path = 3;
+  }
+}
+
+message StatusWordInfo {
+  uint32 value = 1;
+  StatusWordClass class = 2;
+  string label = 3;
+  bool success = 4;
+  bool warning = 5;
+  optional uint32 remaining_response_bytes = 6;
+  optional uint32 retry_counter = 7;
+  optional uint32 exact_length_hint = 8;
+}
+
+message CommandApduFrame {
+  bytes raw = 1;
+  uint32 cla = 2;
+  uint32 ins = 3;
+  uint32 p1 = 4;
+  uint32 p2 = 5;
+  bytes data = 6;
+  optional uint32 ne = 7;
+  ApduEncoding encoding = 8;
+  CommandApduCase apdu_case = 9;
+  CommandDomain domain = 10;
+  CommandKind kind = 11;
+  uint32 logical_channel = 12;
+}
+
+message ResponseApduFrame {
+  bytes raw = 1;
+  bytes data = 2;
+  uint32 sw = 3;
+  StatusWordInfo status = 4;
+}
+
+message AtrInterfaceGroup {
+  uint32 index = 1;
+  optional uint32 ta = 2;
+  optional uint32 tb = 3;
+  optional uint32 tc = 4;
+  optional uint32 td = 5;
+  TransportProtocol protocol = 6;
+}
+
+message AtrInfo {
+  bytes raw = 1;
+  string hex = 2;
+  TransmissionConvention convention = 3;
+  repeated AtrInterfaceGroup interface_groups = 4;
+  bytes historical_bytes = 5;
+  optional uint32 checksum_tck = 6;
+  repeated TransportProtocol protocols = 7;
+}
+
+message ProtocolParametersInfo {
+  TransportProtocol protocol = 1;
+  optional uint32 fi = 2;
+  optional uint32 di = 3;
+  optional uint32 waiting_integer = 4;
+  optional uint32 ifsc = 5;
+}
+
+message RetryCounterInfo {
+  uint32 reference = 1;
+  uint32 remaining = 2;
+}
+
+message SecureMessagingStateInfo {
+  bool active = 1;
+  SecureMessagingProtocol protocol = 2;
+  optional uint32 security_level = 3;
+  string session_id = 4;
+  uint32 command_counter = 5;
+  string protocol_label = 6;
+}
+
+message LogicalChannelStateInfo {
+  uint32 channel_number = 1;
+  AidInfo selected_aid = 2;
+  FileSelectionInfo current_file = 3;
+}
+
+message IsoCapabilitiesInfo {
+  repeated TransportProtocol protocols = 1;
+  bool extended_length = 2;
+  bool logical_channels = 3;
+  uint32 max_logical_channels = 4;
+  bool secure_messaging = 5;
+  bool file_model_visibility = 6;
+  bool raw_apdu = 7;
+}
+
+message IsoSessionStateInfo {
+  PowerState power_state = 1;
+  AtrInfo atr = 2;
+  ProtocolParametersInfo active_protocol = 3;
+  AidInfo selected_aid = 4;
+  FileSelectionInfo current_file = 5;
+  repeated LogicalChannelStateInfo open_channels = 6;
+  SecureMessagingStateInfo secure_messaging = 7;
+  repeated uint32 verified_references = 8;
+  repeated RetryCounterInfo retry_counters = 9;
+  StatusWordInfo last_status = 10;
+}
+
+message ProjectSelector {
+  string project_path = 1;
+  string project_id = 2;
+}
+
+message SimulationSelector {
+  string simulation_id = 1;
+}
+
+message CardSelector {
+  string reader_name = 1;
+}
+
+message Artifact {
+  string kind = 1;
+  string path = 2;
+}
+
+message AppletInfo {
+  string class_name = 1;
+  string aid = 2;
+}
+
+message ProjectInfo {
+  string project_id = 1;
+  string name = 2;
+  string project_path = 3;
+  string profile = 4;
+  string build_kind = 5;
+  string package_name = 6;
+  string package_aid = 7;
+  repeated AppletInfo applets = 8;
+}
+
+message SimulationInfo {
+  string simulation_id = 1;
+  SimulationSourceKind source_kind = 2;
+  string project_id = 3;
+  string project_path = 4;
+  string cap_path = 5;
+  SimulationEngineMode engine_mode = 6;
+  SimulationStatus status = 7;
+  string reader_name = 8;
+  string health = 9;
+  AtrInfo atr = 10;
+  ProtocolParametersInfo active_protocol = 11;
+  IsoCapabilitiesInfo iso_capabilities = 12;
+  IsoSessionStateInfo session_state = 13;
+  uint32 package_count = 14;
+  uint32 applet_count = 15;
+  string package_name = 16;
+  string package_aid = 17;
+  repeated string recent_events = 18;
+}
+
+message Overview {
+  uint32 known_project_count = 1;
+  uint32 active_simulation_count = 2;
+}
+
+message GetOverviewResponse {
+  Overview overview = 1;
+}
+
+message ListProjectsResponse {
+  repeated ProjectInfo projects = 1;
+}
+
+message ListSimulationsResponse {
+  repeated SimulationInfo simulations = 1;
+}
+
+message CreateProjectRequest {
+  string name = 1;
+  string directory = 2;
+}
+
+message CreateProjectResponse {
+  ProjectInfo project = 1;
+}
+
+message GetProjectResponse {
+  ProjectInfo project = 1;
+  string manifest_toml = 2;
+}
+
+message CleanProjectResponse {
+  string cleaned_path = 1;
+}
+
+message BuildProjectRequest {
+  ProjectSelector project = 1;
+}
+
+message BuildProjectResponse {
+  ProjectInfo project = 1;
+  repeated Artifact artifacts = 2;
+  bool rebuilt = 3;
+}
+
+message GetArtifactsResponse {
+  ProjectInfo project = 1;
+  repeated Artifact artifacts = 2;
+}
+
+message BuildEvent {
+  string project_id = 1;
+  string level = 2;
+  string message = 3;
+}
+
+message StartSimulationRequest {
+  oneof input {
+    ProjectSelector project = 1;
+    string cap_path = 2;
+  }
+}
+
+message StartSimulationResponse {
+  SimulationInfo simulation = 1;
+}
+
+message StopSimulationResponse {
+  SimulationInfo simulation = 1;
+}
+
+message GetSimulationResponse {
+  SimulationInfo simulation = 1;
+}
+
+message SimulationEvent {
+  string simulation_id = 1;
+  string level = 2;
+  string message = 3;
+}
+
+message GetSimulationSessionStateResponse {
+  IsoSessionStateInfo session_state = 1;
+}
+
+message TransmitApduRequest {
+  SimulationSelector simulation = 1;
+  CommandApduFrame command = 2;
+}
+
+message TransmitApduResponse {
+  ResponseApduFrame response = 1;
+  IsoSessionStateInfo session_state = 2;
+}
+
+message TransmitRawApduRequest {
+  SimulationSelector simulation = 1;
+  bytes apdu = 2;
+}
+
+message TransmitRawApduResponse {
+  bytes apdu = 1;
+  ResponseApduFrame response = 2;
+  IsoSessionStateInfo session_state = 3;
+}
+
+message ManageChannelRequest {
+  SimulationSelector simulation = 1;
+  bool open = 2;
+  optional uint32 channel_number = 3;
+}
+
+message ManageChannelResponse {
+  optional uint32 channel_number = 1;
+  ResponseApduFrame response = 2;
+  IsoSessionStateInfo session_state = 3;
+}
+
+message SecureMessagingRequest {
+  SimulationSelector simulation = 1;
+  SecureMessagingProtocol protocol = 2;
+  optional uint32 security_level = 3;
+  string session_id = 4;
+  string protocol_label = 5;
+}
+
+message SecureMessagingAdvanceRequest {
+  SimulationSelector simulation = 1;
+  uint32 increment_by = 2;
+}
+
+message SecureMessagingResponse {
+  IsoSessionStateInfo session_state = 1;
+}
+
+message GpSecureChannelInfo {
+  string keyset_name = 1;
+  SecureMessagingProtocol protocol = 2;
+  uint32 security_level = 3;
+  string session_id = 4;
+  AidInfo selected_aid = 5;
+  IsoSessionStateInfo session_state = 6;
+}
+
+message OpenGpSecureChannelRequest {
+  SimulationSelector simulation = 1;
+  string keyset_name = 2;
+  optional uint32 security_level = 3;
+}
+
+message OpenGpSecureChannelResponse {
+  GpSecureChannelInfo secure_channel = 1;
+}
+
+message ResetSimulationResponse {
+  AtrInfo atr = 1;
+  IsoSessionStateInfo session_state = 2;
+}
+
+message ReaderInfo {
+  string name = 1;
+  bool card_present = 2;
+}
+
+message CardPackageInfo {
+  string aid = 1;
+  string description = 2;
+}
+
+message CardAppletInfo {
+  string aid = 1;
+  string description = 2;
+}
+
+message ListReadersResponse {
+  repeated ReaderInfo readers = 1;
+}
+
+message CardStatusRequest {
+  string reader_name = 1;
+}
+
+message CardStatusResponse {
+  string reader_name = 1;
+  bool card_present = 2;
+  AtrInfo atr = 3;
+  ProtocolParametersInfo active_protocol = 4;
+  IsoCapabilitiesInfo iso_capabilities = 5;
+  IsoSessionStateInfo session_state = 6;
+  repeated string lines = 7;
+}
+
+message InstallCapRequest {
+  oneof input {
+    ProjectSelector project = 1;
+    string cap_path = 2;
+  }
+  string reader_name = 3;
+}
+
+message InstallCapResponse {
+  string reader_name = 1;
+  string cap_path = 2;
+  string package_name = 3;
+  string package_aid = 4;
+  repeated AppletInfo applets = 5;
+  repeated string output_lines = 6;
+}
+
+message DeleteItemRequest {
+  string reader_name = 1;
+  string aid = 2;
+}
+
+message DeleteItemResponse {
+  string reader_name = 1;
+  string aid = 2;
+  bool deleted = 3;
+  repeated string output_lines = 4;
+}
+
+message ListPackagesRequest {
+  string reader_name = 1;
+}
+
+message ListPackagesResponse {
+  string reader_name = 1;
+  repeated CardPackageInfo packages = 2;
+  repeated string output_lines = 3;
+}
+
+message ListAppletsRequest {
+  string reader_name = 1;
+}
+
+message ListAppletsResponse {
+  string reader_name = 1;
+  repeated CardAppletInfo applets = 2;
+  repeated string output_lines = 3;
+}
+
+message GetCardSessionStateResponse {
+  IsoSessionStateInfo session_state = 1;
+}
+
+message CardApduRequest {
+  string reader_name = 1;
+  CommandApduFrame command = 2;
+}
+
+message CardApduResponse {
+  ResponseApduFrame response = 1;
+  IsoSessionStateInfo session_state = 2;
+}
+
+message CardRawApduRequest {
+  string reader_name = 1;
+  bytes apdu = 2;
+}
+
+message CardRawApduResponse {
+  bytes apdu = 1;
+  ResponseApduFrame response = 2;
+  IsoSessionStateInfo session_state = 3;
+}
+
+message CardManageChannelRequest {
+  string reader_name = 1;
+  bool open = 2;
+  optional uint32 channel_number = 3;
+}
+
+message CardManageChannelResponse {
+  optional uint32 channel_number = 1;
+  ResponseApduFrame response = 2;
+  IsoSessionStateInfo session_state = 3;
+}
+
+message CardSecureMessagingRequest {
+  string reader_name = 1;
+  SecureMessagingProtocol protocol = 2;
+  optional uint32 security_level = 3;
+  string session_id = 4;
+  string protocol_label = 5;
+}
+
+message CardSecureMessagingAdvanceRequest {
+  string reader_name = 1;
+  uint32 increment_by = 2;
+}
+
+message CardSecureMessagingResponse {
+  IsoSessionStateInfo session_state = 1;
+}
+
+message OpenCardGpSecureChannelRequest {
+  string reader_name = 1;
+  string keyset_name = 2;
+  optional uint32 security_level = 3;
+}
+
+message OpenCardGpSecureChannelResponse {
+  GpSecureChannelInfo secure_channel = 1;
+}
+
+message ResetCardRequest {
+  string reader_name = 1;
+}
+
+message ResetCardResponse {
+  AtrInfo atr = 1;
+  IsoSessionStateInfo session_state = 2;
+}
+
+message SetupToolchainsRequest {
+  string java_bin = 1;
+}
+
+message SetupToolchainsResponse {
+  string config_path = 1;
+  string message = 2;
+}
+
+message DoctorResponse {
+  repeated string lines = 1;
+}
+
+message GetServiceStatusResponse {
+  string socket_path = 1;
+  bool running = 2;
+  uint32 known_project_count = 3;
+  uint32 active_simulation_count = 4;
+}
+
+service WorkspaceService {
+  rpc GetOverview(Empty) returns (GetOverviewResponse);
+  rpc ListProjects(Empty) returns (ListProjectsResponse);
+  rpc ListSimulations(Empty) returns (ListSimulationsResponse);
+}
+
+service ProjectService {
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc GetProject(ProjectSelector) returns (GetProjectResponse);
+  rpc CleanProject(ProjectSelector) returns (CleanProjectResponse);
+}
+
+service BuildService {
+  rpc BuildProject(BuildProjectRequest) returns (BuildProjectResponse);
+  rpc GetArtifacts(ProjectSelector) returns (GetArtifactsResponse);
+  rpc StreamBuildEvents(ProjectSelector) returns (stream BuildEvent);
+}
+
+service SimulatorService {
+  rpc StartSimulation(StartSimulationRequest) returns (StartSimulationResponse);
+  rpc StopSimulation(SimulationSelector) returns (StopSimulationResponse);
+  rpc GetSimulation(SimulationSelector) returns (GetSimulationResponse);
+  rpc GetSessionState(SimulationSelector) returns (GetSimulationSessionStateResponse);
+  rpc StreamSimulationEvents(SimulationSelector) returns (stream SimulationEvent);
+  rpc TransmitApdu(TransmitApduRequest) returns (TransmitApduResponse);
+  rpc TransmitRawApdu(TransmitRawApduRequest) returns (TransmitRawApduResponse);
+  rpc ManageChannel(ManageChannelRequest) returns (ManageChannelResponse);
+  rpc OpenSecureMessaging(SecureMessagingRequest) returns (SecureMessagingResponse);
+  rpc AdvanceSecureMessaging(SecureMessagingAdvanceRequest) returns (SecureMessagingResponse);
+  rpc CloseSecureMessaging(SimulationSelector) returns (SecureMessagingResponse);
+  rpc OpenGpSecureChannel(OpenGpSecureChannelRequest) returns (OpenGpSecureChannelResponse);
+  rpc CloseGpSecureChannel(SimulationSelector) returns (SecureMessagingResponse);
+  rpc ResetSimulation(SimulationSelector) returns (ResetSimulationResponse);
+}
+
+service CardService {
+  rpc ListReaders(Empty) returns (ListReadersResponse);
+  rpc GetCardStatus(CardStatusRequest) returns (CardStatusResponse);
+  rpc InstallCap(InstallCapRequest) returns (InstallCapResponse);
+  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
+  rpc ListPackages(ListPackagesRequest) returns (ListPackagesResponse);
+  rpc ListApplets(ListAppletsRequest) returns (ListAppletsResponse);
+  rpc GetSessionState(CardSelector) returns (GetCardSessionStateResponse);
+  rpc TransmitApdu(CardApduRequest) returns (CardApduResponse);
+  rpc TransmitRawApdu(CardRawApduRequest) returns (CardRawApduResponse);
+  rpc ManageChannel(CardManageChannelRequest) returns (CardManageChannelResponse);
+  rpc OpenSecureMessaging(CardSecureMessagingRequest) returns (CardSecureMessagingResponse);
+  rpc AdvanceSecureMessaging(CardSecureMessagingAdvanceRequest) returns (CardSecureMessagingResponse);
+  rpc CloseSecureMessaging(CardSelector) returns (CardSecureMessagingResponse);
+  rpc OpenGpSecureChannel(OpenCardGpSecureChannelRequest) returns (OpenCardGpSecureChannelResponse);
+  rpc CloseGpSecureChannel(CardSelector) returns (CardSecureMessagingResponse);
+  rpc ResetCard(ResetCardRequest) returns (ResetCardResponse);
+}
+
+service SystemService {
+  rpc SetupToolchains(SetupToolchainsRequest) returns (SetupToolchainsResponse);
+  rpc Doctor(Empty) returns (DoctorResponse);
+  rpc GetServiceStatus(Empty) returns (GetServiceStatusResponse);
+}

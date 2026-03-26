@@ -1,0 +1,10 @@
+protocol_version = "1.0"
+main_class = "jcim.backend.SimulatorMain"
+classpath = [
+    "libs/*",
+    "../../third_party/javacard_sdks/jc222_kit/lib/apduio.jar",
+]
+args = []
+startup_timeout_ms = 5000
+accepts_cap = true
+supported_profiles = ["classic221", "classic222", "classic301", "classic304", "classic305"]

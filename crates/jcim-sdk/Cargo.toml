@@ -1,0 +1,25 @@
+[package]
+name = "jcim-sdk"
+version.workspace = true
+edition.workspace = true
+description = "Canonical Rust lifecycle API for JCIM 0.2"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+hex.workspace = true
+hyper-util = { version = "0.1.20", features = ["tokio"] }
+jcim-api = { path = "../jcim-api" }
+jcim-config = { path = "../jcim-config" }
+jcim-core = { path = "../jcim-core" }
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tonic.workspace = true
+tower.workspace = true
+
+[dev-dependencies]
+jcim-app = { path = "../jcim-app" }
+jcimd = { path = "../jcimd" }

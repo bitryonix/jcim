@@ -1,0 +1,16 @@
+[package]
+name = "jcim-api"
+version.workspace = true
+edition.workspace = true
+description = "Local gRPC API contract for JCIM 0.2"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+prost.workspace = true
+tonic.workspace = true
+
+[build-dependencies]
+tonic-build.workspace = true

@@ -1,0 +1,25 @@
+[package]
+name = "jcimd"
+version.workspace = true
+edition.workspace = true
+description = "Local gRPC control plane for JCIM 0.2"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+clap.workspace = true
+jcim-api = { path = "../jcim-api" }
+jcim-app = { path = "../jcim-app" }
+jcim-core = { path = "../jcim-core" }
+tokio.workspace = true
+tokio-stream.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+hyper-util = { version = "0.1.20", features = ["tokio"] }
+jcim-config = { path = "../jcim-config" }
+tower.workspace = true

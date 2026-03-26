@@ -1,0 +1,17 @@
+[package]
+name = "jcim-build"
+version.workspace = true
+edition.workspace = true
+description = "Java Card source and artifact build orchestration for JCIM"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+jcim-config = { path = "../jcim-config" }
+jcim-core = { path = "../jcim-core" }
+hex.workspace = true
+serde.workspace = true
+sha2.workspace = true
+toml.workspace = true

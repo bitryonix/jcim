@@ -1,0 +1,19 @@
+[package]
+name = "jcim-backends"
+version.workspace = true
+edition.workspace = true
+description = "Backend trait and external simulator adapter for JCIM"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+hex.workspace = true
+jcim-cap = { path = "../jcim-cap" }
+jcim-config = { path = "../jcim-config" }
+jcim-core = { path = "../jcim-core" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+toml.workspace = true
