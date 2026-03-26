@@ -61,10 +61,8 @@ impl SimulationRef {
 /// Input source used to start one simulation.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum SimulationInput {
-    /// Build or reuse one JCIM project CAP and start the simulator from it.
+    /// Build or reuse one JCIM project and start the simulator from its managed runtime artifacts.
     Project(ProjectRef),
-    /// Start the simulator directly from one CAP path.
-    Cap(PathBuf),
 }
 
 /// Input source used to install a CAP onto a physical card.
@@ -97,6 +95,43 @@ impl ReaderRef {
             Self::Named(reader_name) => Some(reader_name),
         }
     }
+}
+
+/// Target selector used to open one unified APDU connection.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub enum CardConnectionTarget {
+    /// Open one connection against a physical reader.
+    Reader(ReaderRef),
+    /// Attach one connection to an already-running simulation.
+    ExistingSimulation(SimulationRef),
+    /// Start and own one simulation-backed connection.
+    StartSimulation(SimulationInput),
+}
+
+/// High-level kind of target behind one unified APDU connection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub enum CardConnectionKind {
+    /// The connection targets a physical reader.
+    Reader,
+    /// The connection targets a virtual simulation.
+    Simulation,
+}
+
+/// Resolved target locator behind one unified APDU connection.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub enum CardConnectionLocator {
+    /// One resolved physical reader name.
+    Reader {
+        /// Resolved reader name used for all operations.
+        reader_name: String,
+    },
+    /// One simulation target, optionally owned by the connection.
+    Simulation {
+        /// Stable running simulation selector.
+        simulation: SimulationRef,
+        /// Whether this connection started the simulation and must stop it on close.
+        owned: bool,
+    },
 }
 
 /// High-level overview of the managed JCIM service state.
@@ -172,7 +207,7 @@ pub struct BuildSummary {
 pub enum SimulationSourceKind {
     /// Simulation came from a JCIM project.
     Project,
-    /// Simulation came from a raw CAP.
+    /// Legacy source kind kept only for compatibility with older service values.
     Cap,
     /// Service returned an unknown value.
     Unknown,
@@ -181,10 +216,12 @@ pub enum SimulationSourceKind {
 /// Host mode for one simulation engine.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub enum SimulationEngineMode {
-    /// Simulator is running natively.
+    /// Legacy engine mode returned by older services.
     Native,
-    /// Simulator is running behind a managed container wrapper.
+    /// Legacy engine mode returned by older services.
     Container,
+    /// Simulator is running in a bundled managed JVM.
+    ManagedJava,
     /// Service returned an unknown value.
     Unknown,
 }
@@ -428,6 +465,10 @@ pub struct ServiceStatusSummary {
     pub known_project_count: u32,
     /// Number of active simulations.
     pub active_simulation_count: u32,
+    /// Path to the `jcimd` binary that booted the current service instance.
+    pub service_binary_path: PathBuf,
+    /// Startup-captured fingerprint of the daemon binary behind the current service instance.
+    pub service_binary_fingerprint: String,
 }
 
 /// Build a `PathBuf` from one borrowed path.

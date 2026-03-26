@@ -73,6 +73,9 @@ pub struct ArtifactMetadata {
     pub cap_path: Option<PathBuf>,
     /// Compiled classes directory relative to the project root.
     pub classes_path: PathBuf,
+    /// Extra runtime classpath entries relative to the project root.
+    #[serde(default)]
+    pub runtime_classpath: Vec<PathBuf>,
     /// Simulator metadata path relative to the project root.
     pub simulator_metadata_path: PathBuf,
     /// Fingerprint of the source tree and build-relevant metadata.

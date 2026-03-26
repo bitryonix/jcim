@@ -4,7 +4,7 @@ This directory is the packaging root for external JCIM simulator bundles.
 
 Subdirectories:
 
-- `simulator/`: maintained official-simulator bundle slot shipped in this repository
+- `simulator/`: maintained managed-Java simulator bundle slot shipped in this repository
 
 How it is used:
 

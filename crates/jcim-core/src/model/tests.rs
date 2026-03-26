@@ -5,7 +5,7 @@ use super::{
     CardProfileId, InstallDisposition, InstallRequest, JavaCardClassicVersion, PowerAction,
     ProtocolHandshake, ProtocolVersion, ScpMode,
 };
-use crate::iso7816::IsoCapabilities;
+use crate::iso7816::{Atr, IsoCapabilities};
 
 /// Ensure backend kinds preserve their string contract.
 #[test]
@@ -57,6 +57,19 @@ fn builtin_profiles_use_expected_hardware_families() {
     assert!(classic305.supports_cap_minor(2));
 }
 
+/// Ensure maintained profile ATRs stay parseable by the ISO session layer.
+#[test]
+fn builtin_profile_atrs_are_parseable() {
+    for profile_id in [
+        CardProfileId::Classic21,
+        CardProfileId::Classic221,
+        CardProfileId::Classic304,
+    ] {
+        let profile = CardProfile::builtin(profile_id);
+        Atr::parse(&profile.hardware.atr).expect("profile ATR should parse");
+    }
+}
+
 /// Ensure typed power and install helpers preserve the compact boolean API semantics.
 #[test]
 fn typed_power_and_install_requests_preserve_boolean_flag_behavior() {
@@ -89,7 +102,6 @@ fn backend_capability_structs_are_buildable() {
     let capabilities = BackendCapabilities {
         protocol_version: ProtocolVersion::current(),
         iso_capabilities: IsoCapabilities::default(),
-        accepts_cap: true,
         supports_typed_apdu: true,
         supports_raw_apdu: true,
         supports_apdu: true,

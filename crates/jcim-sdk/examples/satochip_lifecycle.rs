@@ -36,7 +36,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         hex::encode_upper(status_response.to_bytes())
     );
 
-    let _atr = client.reset_simulation(simulation.simulation_ref()).await?;
+    let _reset = client
+        .reset_simulation_summary(simulation.simulation_ref())
+        .await?;
     let _stopped = client.stop_simulation(simulation.simulation_ref()).await?;
 
     if let Ok(reader_name) = std::env::var("JCIM_EXAMPLE_CARD_READER") {
@@ -54,7 +56,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .transmit_card_apdu_on(&select, ReaderRef::named(reader_name.clone()))
             .await?;
         println!("Card SELECT status: {:04X}", response.sw);
-        let _atr = client.reset_card_on(ReaderRef::named(reader_name)).await?;
+        let _reset = client
+            .reset_card_summary_on(ReaderRef::named(reader_name))
+            .await?;
     } else {
         println!(
             "Skipping physical-card install. Set JCIM_EXAMPLE_CARD_READER to run the real-card leg."

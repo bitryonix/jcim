@@ -19,7 +19,7 @@ use super::{CardProfileId, ProtocolVersion};
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum BackendKind {
-    /// The maintained CAP-first Java Card simulator adapter.
+    /// The maintained project-backed managed Java Card simulator adapter.
     Simulator,
 }
 
@@ -81,8 +81,6 @@ pub struct BackendCapabilities {
     pub protocol_version: ProtocolVersion,
     /// Explicit ISO/IEC 7816 capability summary reported by the backend.
     pub iso_capabilities: IsoCapabilities,
-    /// Whether the backend accepts raw CAP bytes for installation.
-    pub accepts_cap: bool,
     /// Whether the backend accepts typed command APDU requests.
     pub supports_typed_apdu: bool,
     /// Whether the backend accepts raw APDU passthrough requests.

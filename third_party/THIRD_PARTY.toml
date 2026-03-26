@@ -8,11 +8,11 @@ notes = "Bundled so JCIM can power physical-card install, delete, package, and a
 
 [ecj]
 name = "Eclipse Compiler for Java"
-version = "3.38.0"
+version = "3.33.0"
 artifact = "third_party/ecj/ecj.jar"
 license = "EPL-2.0"
 upstream = "https://repo1.maven.org/maven2/org/eclipse/jdt/ecj/"
-notes = "Bundled because Java Card source builds need an in-repo compiler that can still target the older classfile levels accepted by the Java Card converter."
+notes = "Bundled because Java Card source builds need an in-repo compiler that can still target the older classfile levels accepted by the Java Card converter while remaining runnable on the repo-bundled Temurin 11 runtime."
 
 [ant_javacard]
 name = "ant-javacard"
@@ -29,6 +29,14 @@ artifact = "third_party/javacard_sdks"
 license = "See Oracle Java Card SDK terms and provenance review before redistribution changes."
 upstream = "https://github.com/martinpaljak/oracle_javacard_sdks"
 notes = "Bundled to provide converter jars, export files, and API jars for source-first CAP builds across the supported classic profile family."
+
+[temurin_runtime_bundle]
+name = "Temurin JRE runtime bundle"
+version = "11.0.30+7"
+artifact = "third_party/java-runtimes/temurin-11.0.30+7"
+license = "GPL-2.0-only WITH Classpath-exception-2.0"
+upstream = "https://github.com/adoptium/temurin11-binaries"
+notes = "Bundled so JCIM can run managed simulator, build, and helper Java workflows out of the box on supported macOS and Linux hosts without requiring a host Java install."
 
 [satochip_sources]
 name = "SatochipApplet source example"

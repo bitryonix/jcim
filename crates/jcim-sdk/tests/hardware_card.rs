@@ -4,7 +4,9 @@
 
 use jcim_core::apdu::CommandApdu;
 use jcim_core::{aid::Aid, globalplatform};
-use jcim_sdk::{CardInstallSource, JcimClient, ProjectRef, ReaderRef};
+use jcim_sdk::{
+    CardConnectionKind, CardConnectionTarget, CardInstallSource, JcimClient, ProjectRef, ReaderRef,
+};
 
 #[tokio::test]
 async fn hardware_card_lifecycle_runs_when_enabled() {
@@ -43,16 +45,21 @@ async fn hardware_card_lifecycle_runs_when_enabled() {
         .expect("applets");
     assert!(!applets.applets.is_empty());
 
+    let connection = client
+        .open_card_connection(CardConnectionTarget::Reader(reader.clone()))
+        .await
+        .expect("open card connection");
+    assert_eq!(connection.kind(), CardConnectionKind::Reader);
+
     let select =
         CommandApdu::parse(&hex::decode("00A40400095361746F4368697000").expect("decode select"))
             .expect("parse select");
-    let response = client
-        .transmit_card_apdu_on(&select, reader.clone())
-        .await
-        .expect("select applet");
+    let response = connection.transmit(&select).await.expect("select applet");
     assert_eq!(response.sw, 0x9000);
 
-    let _atr = client.reset_card_on(reader).await.expect("reset");
+    let _session = connection.session_state().await.expect("session state");
+    let _atr = connection.reset_summary().await.expect("reset");
+    connection.close().await.expect("close connection");
 }
 
 #[tokio::test]

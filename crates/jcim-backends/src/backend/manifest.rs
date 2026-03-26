@@ -29,9 +29,6 @@ pub(super) struct BackendBundleManifest {
     /// Startup timeout in milliseconds for the handshake probe.
     #[serde(default = "default_startup_timeout_ms")]
     pub(super) startup_timeout_ms: u64,
-    /// Whether the bundle accepts a CAP path at startup.
-    #[serde(default)]
-    pub(super) accepts_cap: bool,
     /// Explicitly supported profiles, or empty for "not declared".
     #[serde(default)]
     pub(super) supported_profiles: Vec<CardProfileId>,
@@ -66,14 +63,14 @@ pub(super) fn validate_external_config(
 
     match config.backend.kind {
         BackendKind::Simulator => {
-            if config.cap_path.is_none() {
+            if config.classes_path.is_none() {
                 return Err(JcimError::Unsupported(
-                    "the simulator backend requires a CAP path".to_string(),
+                    "the simulator backend requires a compiled classes path".to_string(),
                 ));
             }
-            if !manifest.accepts_cap {
+            if config.simulator_metadata_path.is_none() {
                 return Err(JcimError::Unsupported(
-                    "the selected simulator bundle manifest does not accept a CAP path".to_string(),
+                    "the simulator backend requires simulator metadata".to_string(),
                 ));
             }
             Ok(())

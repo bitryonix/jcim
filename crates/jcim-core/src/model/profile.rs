@@ -291,7 +291,7 @@ impl CardProfile {
                     reader_name: format!("JCIM Classic {} Reader", id.display_name()),
                     hardware: HardwareProfile {
                         name: "512 KB dev card".to_string(),
-                        atr: vec![0x3B, 0x80, 0x80, 0x01, 0x30, 0x05],
+                        atr: vec![0x3B, 0x81, 0x80, 0x01, 0x30, 0x05],
                         memory: MemoryLimits {
                             persistent_bytes: 512 * 1024,
                             transient_reset_bytes: 32 * 1024,

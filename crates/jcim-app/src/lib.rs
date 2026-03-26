@@ -6,14 +6,15 @@
 //! desktop UI and the lower-level build, simulator, and card adapters.
 //!
 //! # Role in the system
-//! `jcim-app` resolves projects, manages the local project registry, supervises CAP-first
-//! simulations, coordinates build-on-demand flows, exposes physical-card operations, and persists
-//! machine-local configuration.
+//! `jcim-app` resolves projects, manages the local project registry, supervises project-backed
+//! managed simulations, coordinates build-on-demand flows, exposes physical-card operations, and
+//! persists machine-local configuration.
 
 #![forbid(unsafe_code)]
 
 mod app;
 mod card;
+mod java_runtime;
 mod model;
 mod registry;
 

@@ -16,4 +16,6 @@ Run it directly with:
 cargo run -p jcimd
 ```
 
+Run that command from the workspace root.
+
 Most users reach it indirectly through `jcim-cli`, which starts the service on demand.

@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 mod client;
+mod connection;
 mod error;
 mod types;
 
@@ -16,13 +17,14 @@ pub use jcim_core::apdu::{CommandApdu, ResponseApdu};
 pub use jcim_core::{globalplatform, iso7816};
 
 pub use client::JcimClient;
+pub use connection::CardConnection;
 pub use error::{JcimSdkError, Result};
 pub use types::{
     ApduExchangeSummary, AppletSummary, ArtifactSummary, BuildSummary, CardAppletInventory,
-    CardAppletSummary, CardDeleteSummary, CardInstallSource, CardInstallSummary,
-    CardPackageInventory, CardPackageSummary, CardReaderSummary, CardStatusSummary, EventLine,
-    GpSecureChannelSummary, ManageChannelSummary, OverviewSummary, ProjectDetails, ProjectRef,
-    ProjectSummary, ReaderRef, ResetSummary, SecureMessagingSummary, ServiceStatusSummary,
-    SetupSummary, SimulationEngineMode, SimulationInput, SimulationRef, SimulationSourceKind,
-    SimulationStatus, SimulationSummary,
+    CardAppletSummary, CardConnectionKind, CardConnectionLocator, CardConnectionTarget,
+    CardDeleteSummary, CardInstallSource, CardInstallSummary, CardPackageInventory,
+    CardPackageSummary, CardReaderSummary, CardStatusSummary, EventLine, GpSecureChannelSummary,
+    ManageChannelSummary, OverviewSummary, ProjectDetails, ProjectRef, ProjectSummary, ReaderRef,
+    ResetSummary, SecureMessagingSummary, ServiceStatusSummary, SetupSummary, SimulationEngineMode,
+    SimulationInput, SimulationRef, SimulationSourceKind, SimulationStatus, SimulationSummary,
 };

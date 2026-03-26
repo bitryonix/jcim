@@ -7,8 +7,8 @@
 > operations workflow for **Boomlet**, the Java Card applet used in **Boomerang**.
 
 JCIM 0.2 is a local Java Card simulator workbench built around one user-local gRPC service, a
-transport-neutral application core, a CAP-first build pipeline, a canonical Rust lifecycle API,
-and a thin task-oriented CLI.
+transport-neutral application core, a managed class-backed simulator pipeline, a canonical Rust
+lifecycle API, and a thin task-oriented CLI.
 
 ## Product shape
 
@@ -24,7 +24,7 @@ and a thin task-oriented CLI.
 - `jcim-cap`: CAP parsing and export validation
 - `jcim-config`: project manifests and machine-local configuration
 - `jcim-build`: Java Card source discovery, CAP builds, and artifact metadata
-- `jcim-backends`: official-simulator backend launching and control-stream supervision
+- `jcim-backends`: managed simulator backend launching and control-stream supervision
 - `jcim-api`: local gRPC contract
 - `jcim-app`: application services
 - `jcim-sdk`: Rust lifecycle API for build, simulator, and real-card workflows
@@ -37,49 +37,49 @@ Create a project:
 
 ```sh
 cargo run -p jcim-cli -- project new demo --directory ./demo
-cd demo
 ```
 
 Persist machine-local settings and inspect the environment:
 
 ```sh
-cargo run -p jcim-cli -- system setup --java-bin java
+cargo run -p jcim-cli -- system setup
 cargo run -p jcim-cli -- system doctor
 ```
 
 Build the project to a CAP:
 
 ```sh
-cargo run -p jcim-cli -- build --project .
-cargo run -p jcim-cli -- build artifacts --project .
+cargo run -p jcim-cli -- build --project ./demo
+cargo run -p jcim-cli -- build artifacts --project ./demo
 ```
 
 Start a simulator from the project:
 
 ```sh
-cargo run -p jcim-cli -- sim start --project .
+cargo run -p jcim-cli -- sim start --project ./demo
 cargo run -p jcim-cli -- sim status
 ```
 
-Start a simulator from a raw CAP:
+Use the maintained typed ISO path against the default demo applet:
 
 ```sh
-cargo run -p jcim-cli -- sim start --cap ./target.cap
+cargo run -p jcim-cli -- sim iso select --aid F00000000101
+cargo run -p jcim-cli -- sim reset
+cargo run -p jcim-cli -- sim stop
 ```
 
-Send APDUs or reset the running simulation:
+Use the raw APDU escape hatch only when you really need exact bytes:
 
 ```sh
-cargo run -p jcim-cli -- sim apdu 00A4040000 --simulation sim-...
-cargo run -p jcim-cli -- sim reset --simulation sim-...
+cargo run -p jcim-cli -- sim apdu 00A4040006F0000000010100
 ```
 
-Inspect physical readers and cards:
+When you have a connected PC/SC reader and card, inspect hardware with:
 
 ```sh
 cargo run -p jcim-cli -- card readers
-cargo run -p jcim-cli -- card status
-cargo run -p jcim-cli -- card install --project .
+cargo run -p jcim-cli -- card status --reader "Your Reader Name"
+cargo run -p jcim-cli -- card install --project ./demo --reader "Your Reader Name"
 ```
 
 Inspect the local service:
@@ -94,9 +94,26 @@ Run the Rust lifecycle demo against the source-backed Satochip example:
 cargo run -p jcim-sdk --example satochip_lifecycle
 ```
 
-From Rust, `jcim-sdk` also exposes typed ISO/IEC 7816 and GlobalPlatform helpers on top of the
-existing card and simulation APDU channels, including typed `SELECT`, `GET STATUS`, and `SET STATUS`
-workflows for GP administration.
+Run the Rust wallet/bootstrap/signing demo against a fresh virtual Satochip:
+
+```sh
+cargo run -p jcim-sdk --example satochip_wallet
+```
+
+Notes:
+
+- These commands are written to be run from the repository root.
+- Simulation commands omit `--simulation` only because the quick start creates exactly one running
+  simulation. If you have more than one, pass the id from `cargo run -p jcim-cli -- sim status`.
+- Physical-card commands require a real PC/SC reader, a present card, and a reader name from
+  `cargo run -p jcim-cli -- card readers`.
+- If your real-card install path requires authenticated GP administration, configure
+  `JCIM_GP_DEFAULT_KEYSET` plus the matching `JCIM_GP_<NAME>_{MODE,ENC,MAC,DEK}` environment
+  variables before running the install or reader-backed wallet flows.
+
+From Rust, `jcim-sdk` exposes one unified `CardConnection` surface for APDU traffic against either
+real readers or virtual simulations, plus the existing typed ISO/IEC 7816 and GlobalPlatform
+helpers on `JcimClient` for higher-level admin workflows.
 
 ## Manifest model
 
@@ -115,14 +132,18 @@ Machine-local settings live outside the project under the managed JCIM root:
 
 ## Current posture
 
-- The maintained simulator path is CAP-first and uses the official Java Card simulator tooling.
-- Java source support means: build sources to a CAP, then install that CAP into the same simulator.
-- Raw `.cap` files are first-class simulator inputs through the gRPC API and `jcim sim start --cap`.
-- Physical-card utilities stay available through `jcim card ...`, but they are secondary to the simulator.
+- The maintained simulator path is project-backed, bundled, and class-backed through `jcardsim`.
+- On macOS and Linux, JCIM uses a bundled Temurin 11 runtime for builds, simulator startup, and
+  bundled helper jars. No Docker, `JCIM_SIMULATOR_CONTAINER_CMD`, or host Java install is required
+  for the maintained path.
+- Java source support means: build the project, then start the managed simulator from the emitted
+  classes, runtime classpath, and simulator metadata.
+- CAP artifacts remain first-class build outputs for card install, artifact inspection, and
+  debugging, but not as a maintained simulator startup input.
+- Physical-card utilities stay available through `jcim card ...`, but they are secondary to the
+  simulator, hardware-gated, and limited to directly observed plus JCIM-tracked state.
 - The Rust SDK includes typed ISO/IEC 7816 and GlobalPlatform helpers, but real-card GP admin
   commands still depend on the card accepting the caller's authenticated state or secure channel.
-- On macOS, the official simulator path requires a managed Linux container command through
-  `JCIM_SIMULATOR_CONTAINER_CMD`. Linux and Windows use native official-simulator binaries.
 
 ## Reference docs
 

@@ -17,6 +17,7 @@ pub(crate) fn build_jcim_project(
     request: &BuildArtifactRequest,
     toolchain: &ToolchainLayout,
     fingerprint: &str,
+    java_bin: &Path,
 ) -> Result<ArtifactMetadata> {
     let profile_tool = profile_toolchain(request.profile, toolchain)?;
     let build_root = project_build_root(&request.project_root);
@@ -40,7 +41,7 @@ pub(crate) fn build_jcim_project(
             .collect::<Vec<_>>(),
     );
     run_command(
-        Command::new("java")
+        Command::new(java_bin)
             .arg("-jar")
             .arg(&toolchain.ecj_jar)
             .arg(profile_tool.ecj_compliance)
@@ -63,7 +64,13 @@ pub(crate) fn build_jcim_project(
     )?;
 
     let cap_path = if request.emit.contains(&ArtifactKind::Cap) {
-        run_converter(request, &profile_tool, &classes_dir, &converter_dir)?;
+        run_converter(
+            request,
+            &profile_tool,
+            &classes_dir,
+            &converter_dir,
+            java_bin,
+        )?;
         let generated = converter_dir
             .join(request.package_name.replace('.', "/"))
             .join("javacard")
@@ -99,6 +106,11 @@ pub(crate) fn build_jcim_project(
             .as_ref()
             .map(|path| relativize_path(&request.project_root, path)),
         classes_path: relativize_path(&request.project_root, &classes_dir),
+        runtime_classpath: request
+            .dependencies
+            .iter()
+            .map(|path| relativize_path(&request.project_root, path))
+            .collect(),
         simulator_metadata_path: relativize_path(&request.project_root, &simulator_metadata_path),
         source_fingerprint: fingerprint.to_string(),
     })
@@ -108,6 +120,7 @@ pub(crate) fn build_jcim_project(
 pub(crate) fn build_external_project(
     request: &BuildArtifactRequest,
     fingerprint: &str,
+    _java_bin: &Path,
 ) -> Result<ArtifactMetadata> {
     let build_cmd = request.command.as_ref().ok_or_else(|| {
         JcimError::Unsupported(format!(
@@ -157,6 +170,11 @@ pub(crate) fn build_external_project(
         applets: request.applets.clone(),
         cap_path: cap_path.map(|path| relativize_path(&request.project_root, path)),
         classes_path: relativize_path(&request.project_root, &classes_dir),
+        runtime_classpath: request
+            .dependencies
+            .iter()
+            .map(|path| relativize_path(&request.project_root, path))
+            .collect(),
         simulator_metadata_path: relativize_path(&request.project_root, &simulator_metadata_path),
         source_fingerprint: fingerprint.to_string(),
     })
@@ -168,13 +186,14 @@ fn run_converter(
     profile_tool: &ProfileToolchain,
     classes_dir: &Path,
     converter_dir: &Path,
+    java_bin: &Path,
 ) -> Result<()> {
     let export_path = classpath_string(
         std::iter::once(profile_tool.export_dir.clone())
             .chain(request.dependencies.iter().cloned())
             .collect::<Vec<_>>(),
     );
-    let mut command = Command::new("java");
+    let mut command = Command::new(java_bin);
     command
         .arg("-cp")
         .arg(classpath_string(profile_tool.tool_jars.clone()))

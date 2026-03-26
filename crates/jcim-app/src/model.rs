@@ -28,7 +28,7 @@ pub struct SimulationSelectorInput {
 pub enum SimulationSourceKind {
     /// A JCIM project was built to CAP and started in the simulator.
     Project,
-    /// A raw CAP path was provided directly.
+    /// Legacy source kind kept only for compatibility with older records.
     Cap,
 }
 
@@ -45,10 +45,12 @@ impl SimulationSourceKind {
 /// Engine mode used to host one running simulation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SimulationEngineMode {
-    /// The official simulator is running natively on the local machine.
+    /// Legacy engine mode kept for decode compatibility with older records.
     Native,
-    /// The official simulator is running behind a managed container wrapper.
+    /// Legacy engine mode kept for decode compatibility with older records.
     Container,
+    /// The simulator is running in a bundled managed JVM.
+    ManagedJava,
 }
 
 impl SimulationEngineMode {
@@ -57,6 +59,7 @@ impl SimulationEngineMode {
         match self {
             Self::Native => "native",
             Self::Container => "container",
+            Self::ManagedJava => "managed_java",
         }
     }
 }
@@ -360,4 +363,8 @@ pub struct ServiceStatusSummary {
     pub known_project_count: u32,
     /// Number of active simulations currently managed by the service.
     pub active_simulation_count: u32,
+    /// Path to the `jcimd` binary that booted this service instance.
+    pub service_binary_path: PathBuf,
+    /// Startup-captured fingerprint of the `jcimd` binary behind this service instance.
+    pub service_binary_fingerprint: String,
 }

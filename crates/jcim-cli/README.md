@@ -17,6 +17,12 @@ Primary commands:
 - `jcim card ...`
 - `jcim system ...`
 
+Maintained task paths:
+
+- typed simulator workflows: `jcim sim iso ...` and `jcim sim gp ...`
+- typed physical-card workflows: `jcim card iso ...` and `jcim card gp ...`
+- raw APDU passthrough: `jcim sim apdu` and `jcim card apdu` as the expert escape hatch
+
 Further reading:
 
 - Architecture: `ARCHITECTURE.md`

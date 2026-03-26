@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 pub struct BackendConfig {
     /// Backend implementation to launch.
     pub kind: BackendKind,
-    /// Java executable used for simulator helper tools.
+    /// Java executable override used when JCIM does not select a bundled runtime automatically.
     pub java_bin: String,
     /// Root directory that contains simulator bundle subdirectories.
     pub bundle_root: PathBuf,
@@ -40,9 +40,14 @@ pub struct RuntimeConfig {
     pub profile_id: CardProfileId,
     /// Optional hardware override merged on top of the builtin profile.
     pub hardware_override: Option<HardwareProfile>,
-    /// Optional CAP archive to install during startup.
+    /// Optional CAP artifact path reported to the backend for diagnostics and inventory context.
     pub cap_path: Option<PathBuf>,
-    /// Optional simulator metadata file used by source-backed flows and direct CAP input.
+    /// Optional compiled classes directory used by the managed Java simulator.
+    pub classes_path: Option<PathBuf>,
+    /// Optional extra runtime classpath entries used to load applet dependencies.
+    #[serde(default)]
+    pub runtime_classpath: Vec<PathBuf>,
+    /// Optional simulator metadata file used by source-backed simulator flows.
     pub simulator_metadata_path: Option<PathBuf>,
     /// Additional export hint files used during CAP import validation.
     pub export_paths: Vec<PathBuf>,
@@ -59,6 +64,8 @@ impl Default for RuntimeConfig {
             profile_id: CardProfileId::Classic305,
             hardware_override: None,
             cap_path: None,
+            classes_path: None,
+            runtime_classpath: Vec::new(),
             simulator_metadata_path: None,
             export_paths: Vec::new(),
             atr: None,
@@ -164,6 +171,8 @@ mod tests {
                 java_bin: "java17".to_string(),
                 bundle_root: PathBuf::from("/opt/jcim-backends"),
             },
+            classes_path: Some(PathBuf::from("/opt/jcim-build/classes")),
+            runtime_classpath: vec![PathBuf::from("/opt/jcim-build/lib/helper.jar")],
             simulator_metadata_path: Some(PathBuf::from("/opt/jcim-build/simulator.properties")),
             ..RuntimeConfig::default()
         };
@@ -171,6 +180,14 @@ mod tests {
         let decoded = RuntimeConfig::from_toml_str(&encoded).expect("decode");
         assert_eq!(decoded.backend.kind, BackendKind::Simulator);
         assert_eq!(decoded.backend.java_bin, "java17");
+        assert_eq!(
+            decoded.classes_path,
+            Some(PathBuf::from("/opt/jcim-build/classes"))
+        );
+        assert_eq!(
+            decoded.runtime_classpath,
+            vec![PathBuf::from("/opt/jcim-build/lib/helper.jar")]
+        );
         assert_eq!(
             decoded.simulator_metadata_path,
             Some(PathBuf::from("/opt/jcim-build/simulator.properties"))

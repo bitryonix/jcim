@@ -19,6 +19,8 @@ pub use types::{
     ArtifactMetadata, BuildAppletMetadata, BuildArtifactRequest, BuildOutcome, ToolchainLayout,
 };
 
+use std::path::Path;
+
 use jcim_core::error::Result;
 
 use self::executor::{build_external_project, build_jcim_project};
@@ -30,12 +32,23 @@ pub fn build_project_artifacts(
     request: &BuildArtifactRequest,
     toolchain: &ToolchainLayout,
 ) -> Result<BuildOutcome> {
+    build_project_artifacts_with_java_bin(request, toolchain, Path::new("java"))
+}
+
+/// Build one request unconditionally with one explicit Java runtime executable.
+pub fn build_project_artifacts_with_java_bin(
+    request: &BuildArtifactRequest,
+    toolchain: &ToolchainLayout,
+    java_bin: &Path,
+) -> Result<BuildOutcome> {
     let fingerprint = compute_source_fingerprint(request)?;
     let metadata = match request.build_kind {
         jcim_config::project::BuildKind::Native => {
-            build_jcim_project(request, toolchain, &fingerprint)?
+            build_jcim_project(request, toolchain, &fingerprint, java_bin)?
         }
-        jcim_config::project::BuildKind::Command => build_external_project(request, &fingerprint)?,
+        jcim_config::project::BuildKind::Command => {
+            build_external_project(request, &fingerprint, java_bin)?
+        }
     };
     save_artifact_metadata(&request.project_root, &metadata)?;
     Ok(BuildOutcome {
@@ -49,6 +62,16 @@ pub fn build_project_artifacts_if_stale(
     request: &BuildArtifactRequest,
     toolchain: &ToolchainLayout,
 ) -> Result<BuildOutcome> {
+    build_project_artifacts_if_stale_with_java_bin(request, toolchain, Path::new("java"))
+}
+
+/// Build one request only when the current metadata is stale or missing using one explicit Java
+/// runtime executable.
+pub fn build_project_artifacts_if_stale_with_java_bin(
+    request: &BuildArtifactRequest,
+    toolchain: &ToolchainLayout,
+    java_bin: &Path,
+) -> Result<BuildOutcome> {
     let fingerprint = compute_source_fingerprint(request)?;
     if let Some(metadata) = load_artifact_metadata(&request.project_root)? {
         let cap_ok = metadata
@@ -60,10 +83,15 @@ pub fn build_project_artifacts_if_stale(
             .join(&metadata.simulator_metadata_path)
             .exists();
         let classes_ok = request.project_root.join(&metadata.classes_path).exists();
+        let runtime_classpath_ok = metadata
+            .runtime_classpath
+            .iter()
+            .all(|path| request.project_root.join(path).exists());
         if metadata.source_fingerprint == fingerprint
             && cap_ok
             && simulator_metadata_ok
             && classes_ok
+            && runtime_classpath_ok
         {
             return Ok(BuildOutcome {
                 metadata,
@@ -72,7 +100,7 @@ pub fn build_project_artifacts_if_stale(
         }
     }
 
-    build_project_artifacts(request, toolchain)
+    build_project_artifacts_with_java_bin(request, toolchain, java_bin)
 }
 
 #[cfg(test)]

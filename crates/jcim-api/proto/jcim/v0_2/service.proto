@@ -14,6 +14,7 @@ enum SimulationEngineMode {
   SIMULATION_ENGINE_MODE_UNSPECIFIED = 0;
   SIMULATION_ENGINE_MODE_NATIVE = 1;
   SIMULATION_ENGINE_MODE_CONTAINER = 2;
+  SIMULATION_ENGINE_MODE_MANAGED_JAVA = 3;
 }
 
 enum SimulationStatus {
@@ -344,10 +345,9 @@ message BuildEvent {
 }
 
 message StartSimulationRequest {
-  oneof input {
-    ProjectSelector project = 1;
-    string cap_path = 2;
-  }
+  ProjectSelector project = 1;
+  reserved 2;
+  reserved "cap_path";
 }
 
 message StartSimulationResponse {
@@ -619,6 +619,8 @@ message GetServiceStatusResponse {
   bool running = 2;
   uint32 known_project_count = 3;
   uint32 active_simulation_count = 4;
+  string service_binary_path = 5;
+  string service_binary_fingerprint = 6;
 }
 
 service WorkspaceService {

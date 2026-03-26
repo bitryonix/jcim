@@ -49,7 +49,7 @@ enum Command {
     },
     /// Build the current or selected project.
     Build(BuildCommand),
-    /// Start, inspect, and control CAP-first simulations.
+    /// Start, inspect, and control managed simulations.
     Sim {
         #[command(subcommand)]
         command: SimCommand,
@@ -111,7 +111,7 @@ enum BuildSubcommand {
 
 #[derive(Debug, Subcommand)]
 enum SimCommand {
-    /// Start a new simulation from a project or raw CAP.
+    /// Start a new simulation from a project.
     Start(SimStartArgs),
     /// Stop a simulation.
     Stop(SimulationArgs),
@@ -176,9 +176,6 @@ enum SimGpCommand {
 struct SimStartArgs {
     #[command(flatten)]
     project: ProjectSelectorArgs,
-    /// Raw CAP path to start directly in the simulator.
-    #[arg(long)]
-    cap: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -626,14 +623,7 @@ async fn run_sim(command: SimCommand, json_mode: bool) -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     match command {
         SimCommand::Start(args) => {
-            if args.cap.is_some() && (args.project.project.is_some() || args.project.id.is_some()) {
-                return Err("pass either `--cap` or a project selector, not both".to_string());
-            }
-            let input = if let Some(cap_path) = args.cap {
-                SimulationInput::Cap(cap_path)
-            } else {
-                SimulationInput::Project(resolve_project_ref(args.project)?)
-            };
+            let input = SimulationInput::Project(resolve_project_ref(args.project)?);
             let simulation = client
                 .start_simulation(input)
                 .await
@@ -696,14 +686,21 @@ async fn run_sim(command: SimCommand, json_mode: bool) -> Result<(), String> {
             print_apdu_response(&response, json_mode);
         }
         SimCommand::Reset(args) => {
-            let atr_hex = client
-                .reset_simulation(resolve_simulation_ref(&client, args.simulation).await?)
+            let summary = client
+                .reset_simulation_summary(resolve_simulation_ref(&client, args.simulation).await?)
                 .await
                 .map_err(|error| error.to_string())?;
             if json_mode {
-                println!("{}", json!({ "atr_hex": atr_hex }));
+                println!("{}", json!(summary));
             } else {
-                println!("{atr_hex}");
+                println!(
+                    "{}",
+                    summary
+                        .atr
+                        .as_ref()
+                        .map(|atr| hex::encode_upper(&atr.raw))
+                        .unwrap_or_default()
+                );
             }
         }
         SimCommand::Iso { command } => match command {
@@ -948,14 +945,21 @@ async fn run_card(command: CardCommand, json_mode: bool) -> Result<(), String> {
             print_apdu_response(&response, json_mode);
         }
         CardCommand::Reset(args) => {
-            let atr_hex = client
-                .reset_card_on(reader_ref(args.reader))
+            let summary = client
+                .reset_card_summary_on(reader_ref(args.reader))
                 .await
                 .map_err(|error| error.to_string())?;
             if json_mode {
-                println!("{}", json!({ "atr_hex": atr_hex }));
+                println!("{}", json!(summary));
             } else {
-                println!("{atr_hex}");
+                println!(
+                    "{}",
+                    summary
+                        .atr
+                        .as_ref()
+                        .map(|atr| hex::encode_upper(&atr.raw))
+                        .unwrap_or_default()
+                );
             }
         }
         CardCommand::Iso { command } => match command {
@@ -1144,6 +1148,8 @@ async fn run_system(command: SystemCommand, json_mode: bool) -> Result<(), Strin
                     running: false,
                     known_project_count: 0,
                     active_simulation_count: 0,
+                    service_binary_path: PathBuf::new(),
+                    service_binary_fingerprint: String::new(),
                 },
             };
             print_service_status(&status, json_mode);
@@ -1671,6 +1677,7 @@ fn simulation_engine_name(mode: jcim_sdk::SimulationEngineMode) -> &'static str 
     match mode {
         jcim_sdk::SimulationEngineMode::Native => "native",
         jcim_sdk::SimulationEngineMode::Container => "container",
+        jcim_sdk::SimulationEngineMode::ManagedJava => "managed_java",
         jcim_sdk::SimulationEngineMode::Unknown => "unknown",
     }
 }
@@ -1712,25 +1719,6 @@ mod tests {
                     args.project.project.expect("project path"),
                     std::path::PathBuf::from("examples/satochip/workdir")
                 );
-                assert!(args.cap.is_none());
-            }
-            other => panic!("unexpected command: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn sim_start_accepts_raw_cap_input() {
-        let cli =
-            Cli::try_parse_from(["jcim", "sim", "start", "--cap", "card.cap"]).expect("parse cap");
-        match cli.command {
-            Command::Sim {
-                command: SimCommand::Start(args),
-            } => {
-                assert_eq!(
-                    args.cap.expect("cap path"),
-                    std::path::PathBuf::from("card.cap")
-                );
-                assert!(args.project.project.is_none());
                 assert!(args.project.id.is_none());
             }
             other => panic!("unexpected command: {other:?}"),

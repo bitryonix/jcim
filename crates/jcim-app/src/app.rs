@@ -4,7 +4,6 @@
 // We keep the public façade documented and avoid line-by-line docs on private glue code here.
 
 use std::collections::{HashMap, VecDeque};
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
@@ -12,8 +11,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use jcim_backends::backend::BackendHandle;
 use jcim_build::{
-    ArtifactMetadata, artifact_metadata_from_project, build_project_artifacts_if_stale,
-    build_toolchain_layout, load_artifact_metadata,
+    ArtifactMetadata, artifact_metadata_from_project,
+    build_project_artifacts_if_stale_with_java_bin, build_toolchain_layout, load_artifact_metadata,
 };
 use jcim_cap::prelude::CapPackage;
 use jcim_config::config::RuntimeConfig;
@@ -30,11 +29,12 @@ use jcim_core::iso7816::{
     Atr, IsoCapabilities, IsoSessionState, ProtocolParameters, SecureMessagingProtocol,
     SecureMessagingState, apply_response_to_session,
 };
-use jcim_core::model::{BackendHealthStatus, BackendKind, ProtocolVersion};
+use jcim_core::model::{BackendHealthStatus, BackendKind, CardProfileId, ProtocolVersion};
 
 use crate::card::{
     JavaPhysicalCardAdapter, PhysicalCardAdapter, ResolvedGpKeyset, gppro_jar_path, helper_jar_path,
 };
+use crate::java_runtime::{JavaRuntimeSource, ResolvedJavaRuntime, resolve_java_runtime};
 use crate::model::{
     ApduExchangeSummary, AppletSummary, ArtifactSummary, CardAppletInventory, CardDeleteSummary,
     CardInstallSummary, CardPackageInventory, CardReaderSummary, CardStatusSummary, EventLine,
@@ -56,6 +56,8 @@ pub struct JcimApp {
 
 struct AppState {
     managed_paths: ManagedPaths,
+    service_binary_path: PathBuf,
+    service_binary_fingerprint: String,
     user_config: RwLock<UserConfig>,
     registry: RwLock<ProjectRegistry>,
     simulations: Mutex<HashMap<String, SimulationRecord>>,
@@ -131,6 +133,7 @@ impl JcimApp {
 
         let user_config = UserConfig::load_or_default(&managed_paths.config_path)?;
         let registry = ProjectRegistry::load_or_default(&managed_paths.registry_path)?;
+        let (service_binary_path, service_binary_fingerprint) = current_service_binary_identity()?;
         let next_simulation_id = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -139,6 +142,8 @@ impl JcimApp {
         Ok(Self {
             state: Arc::new(AppState {
                 managed_paths,
+                service_binary_path,
+                service_binary_fingerprint,
                 user_config: RwLock::new(user_config),
                 registry: RwLock::new(registry),
                 simulations: Mutex::new(HashMap::new()),
@@ -242,12 +247,17 @@ impl JcimApp {
         let resolved = self.resolve_project(selector)?;
         let request = artifact_metadata_from_project(&resolved.project_root, &resolved.config)?;
         let toolchain = build_toolchain_layout()?;
+        let java_runtime = self.resolved_java_runtime()?;
         self.remember_build_event(
             &resolved.project_id,
             "info",
             format!("building project {}", resolved.project_root.display()),
         );
-        let outcome = build_project_artifacts_if_stale(&request, &toolchain)?;
+        let outcome = build_project_artifacts_if_stale_with_java_bin(
+            &request,
+            &toolchain,
+            &java_runtime.java_bin,
+        )?;
         self.remember_build_event(
             &resolved.project_id,
             "info",
@@ -308,12 +318,6 @@ impl JcimApp {
                 .unwrap_or(false);
         self.start_prepared_simulation(prepared, reset_after_start)
             .await
-    }
-
-    /// Start one simulation from a raw CAP path.
-    pub async fn start_cap_simulation(&self, cap_path: &Path) -> Result<SimulationSummary> {
-        let prepared = self.prepare_cap_simulation(cap_path)?;
-        self.start_prepared_simulation(prepared, false).await
     }
 
     /// Return the current simulation list.
@@ -651,35 +655,15 @@ impl JcimApp {
         })
     }
 
-    /// Reset the selected simulation and return the current ATR as a compatibility helper.
-    pub async fn reset_simulation(&self, selector: &SimulationSelectorInput) -> Result<String> {
-        let summary = self.reset_simulation_summary(selector).await?;
-        Ok(summary
-            .atr
-            .as_ref()
-            .map(|atr| hex::encode_upper(&atr.raw))
-            .unwrap_or_default())
-    }
-
     /// List physical PC/SC readers.
     pub async fn list_readers(&self) -> Result<Vec<CardReaderSummary>> {
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         self.state.card_adapter.list_readers(&user_config).await
     }
 
     /// Return physical-card status for one reader.
     pub async fn card_status(&self, reader_name: Option<&str>) -> Result<CardStatusSummary> {
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         let effective_reader = self.effective_card_reader(reader_name, None)?;
         self.state
             .card_adapter
@@ -722,12 +706,7 @@ impl JcimApp {
         let effective_cap = self.resolve_input_path(cap_path)?;
         let effective_reader = self.effective_card_reader(reader_name, selector)?;
         let cap_package = CapPackage::from_path(&effective_cap)?;
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         let output_lines = self
             .state
             .card_adapter
@@ -757,12 +736,7 @@ impl JcimApp {
         aid: &str,
     ) -> Result<CardDeleteSummary> {
         let effective_reader = self.effective_card_reader(reader_name, None)?;
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         let output_lines = self
             .state
             .card_adapter
@@ -779,12 +753,7 @@ impl JcimApp {
     /// List packages visible on a physical card.
     pub async fn list_packages(&self, reader_name: Option<&str>) -> Result<CardPackageInventory> {
         let effective_reader = self.effective_card_reader(reader_name, None)?;
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         let mut inventory = self
             .state
             .card_adapter
@@ -799,12 +768,7 @@ impl JcimApp {
     /// List applets visible on a physical card.
     pub async fn list_applets(&self, reader_name: Option<&str>) -> Result<CardAppletInventory> {
         let effective_reader = self.effective_card_reader(reader_name, None)?;
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         let mut inventory = self
             .state
             .card_adapter
@@ -830,12 +794,7 @@ impl JcimApp {
         command: &CommandApdu,
     ) -> Result<ApduExchangeSummary> {
         let effective_reader = self.effective_card_reader(reader_name, None)?;
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         let reader_key = effective_reader.clone().unwrap_or_default();
         let gp_secure_channel = self
             .state
@@ -992,12 +951,7 @@ impl JcimApp {
         security_level: Option<u8>,
     ) -> Result<GpSecureChannelSummary> {
         let effective_reader = self.effective_card_reader(reader_name, None)?;
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         let keyset = ResolvedGpKeyset::resolve(keyset_name)?;
         let security_level_byte = security_level.unwrap_or(0x01);
         let security_level = gp_security_level(security_level_byte);
@@ -1069,12 +1023,7 @@ impl JcimApp {
     /// Reset a physical card and return the ATR.
     pub async fn reset_card_summary(&self, reader_name: Option<&str>) -> Result<ResetSummary> {
         let effective_reader = self.effective_card_reader(reader_name, None)?;
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         let summary = self
             .state
             .card_adapter
@@ -1090,16 +1039,6 @@ impl JcimApp {
             );
         }
         Ok(summary)
-    }
-
-    /// Reset a physical card and return the ATR as a compatibility helper.
-    pub async fn reset_card(&self, reader_name: Option<&str>) -> Result<String> {
-        let summary = self.reset_card_summary(reader_name).await?;
-        Ok(summary
-            .atr
-            .as_ref()
-            .map(|atr| hex::encode_upper(&atr.raw))
-            .unwrap_or_default())
     }
 
     /// Persist machine-local toolchain settings.
@@ -1129,6 +1068,11 @@ impl JcimApp {
             .read()
             .map_err(lock_poisoned)?
             .clone();
+        let java_runtime = self.resolved_java_runtime()?;
+        let java_source = match java_runtime.source {
+            JavaRuntimeSource::Bundled => "bundled",
+            JavaRuntimeSource::Configured => "configured",
+        };
         Ok(vec![
             format!("Managed root: {}", self.state.managed_paths.root.display()),
             format!(
@@ -1143,7 +1087,11 @@ impl JcimApp {
                 "Service socket: {}",
                 self.state.managed_paths.service_socket_path.display()
             ),
-            format!("Java bin: {}", user_config.java_bin),
+            format!("Configured Java bin: {}", user_config.java_bin),
+            format!(
+                "Effective Java runtime: {} ({java_source})",
+                java_runtime.java_bin.display()
+            ),
             format!(
                 "Simulator bundle root: {}",
                 user_config
@@ -1163,7 +1111,31 @@ impl JcimApp {
             running: true,
             known_project_count: self.list_projects()?.len() as u32,
             active_simulation_count: self.active_simulation_count(),
+            service_binary_path: self.state.service_binary_path.clone(),
+            service_binary_fingerprint: self.state.service_binary_fingerprint.clone(),
         })
+    }
+
+    fn resolved_java_runtime(&self) -> Result<ResolvedJavaRuntime> {
+        let user_config = self
+            .state
+            .user_config
+            .read()
+            .map_err(lock_poisoned)?
+            .clone();
+        resolve_java_runtime(&self.state.managed_paths.bundle_root, &user_config.java_bin)
+    }
+
+    fn effective_user_config(&self) -> Result<UserConfig> {
+        let mut user_config = self
+            .state
+            .user_config
+            .read()
+            .map_err(lock_poisoned)?
+            .clone();
+        user_config.bundle_root = Some(user_config.bundle_root.unwrap_or_else(default_bundle_root));
+        user_config.java_bin = self.resolved_java_runtime()?.java_bin.display().to_string();
+        Ok(user_config)
     }
 
     fn resolve_project(&self, selector: &ProjectSelectorInput) -> Result<ResolvedProject> {
@@ -1273,6 +1245,12 @@ impl JcimApp {
             resolved.config.metadata.profile,
             Some(resolved.config.metadata.name.clone()),
             cap_path.clone(),
+            resolved.project_root.join(&build_metadata.classes_path),
+            build_metadata
+                .runtime_classpath
+                .iter()
+                .map(|path| resolved.project_root.join(path))
+                .collect(),
             resolved
                 .project_root
                 .join(&build_metadata.simulator_metadata_path),
@@ -1306,59 +1284,17 @@ impl JcimApp {
         })
     }
 
-    fn prepare_cap_simulation(&self, cap_path: &Path) -> Result<PreparedSimulation> {
-        let cap_path = self.resolve_input_path(cap_path)?;
-        let cap_package = CapPackage::from_path(&cap_path)?;
-        let simulation_id = self.next_simulation_id();
-        let simulation_root = self
-            .state
-            .managed_paths
-            .root
-            .join("simulations")
-            .join(&simulation_id);
-        std::fs::create_dir_all(&simulation_root)?;
-        let simulator_metadata_path = simulation_root.join("simulator.properties");
-        write_simulator_metadata_file(&simulator_metadata_path, &cap_package)?;
-        let runtime_config = self.runtime_config_for_simulation(
-            profile_for_cap(&cap_package),
-            Some(cap_package.package_name.clone()),
-            cap_path.clone(),
-            simulator_metadata_path,
-        )?;
-        Ok(PreparedSimulation {
-            summary: SimulationSummary {
-                simulation_id,
-                source_kind: SimulationSourceKind::Cap,
-                project_id: None,
-                project_path: None,
-                cap_path,
-                engine_mode: engine_mode_for_current_host(),
-                status: SimulationStatusKind::Starting,
-                reader_name: runtime_config
-                    .reader_name
-                    .clone()
-                    .unwrap_or_else(|| "JCIM Simulation".to_string()),
-                health: "starting".to_string(),
-                atr: None,
-                active_protocol: None,
-                iso_capabilities: IsoCapabilities::default(),
-                session_state: IsoSessionState::default(),
-                package_count: 0,
-                applet_count: 0,
-                package_name: cap_package.package_name,
-                package_aid: cap_package.package_aid.to_hex(),
-                recent_events: vec!["info: simulation prepared from cap".to_string()],
-            },
-            runtime_config,
-        })
-    }
-
     async fn start_prepared_simulation(
         &self,
         prepared: PreparedSimulation,
         reset_after_start: bool,
     ) -> Result<SimulationSummary> {
-        ensure_host_simulator_environment(prepared.summary.engine_mode)?;
+        let bundle_dir = prepared.runtime_config.backend_bundle_dir();
+        ensure_host_simulator_environment(
+            prepared.summary.engine_mode,
+            &bundle_dir,
+            prepared.runtime_config.profile_id,
+        )?;
         let handle = BackendHandle::from_config(prepared.runtime_config)?;
         let handshake = handle.handshake(ProtocolVersion::current()).await?;
         if reset_after_start {
@@ -1428,17 +1364,16 @@ impl JcimApp {
         profile_id: jcim_core::model::CardProfileId,
         reader_name: Option<String>,
         cap_path: PathBuf,
+        classes_path: PathBuf,
+        runtime_classpath: Vec<PathBuf>,
         simulator_metadata_path: PathBuf,
     ) -> Result<RuntimeConfig> {
-        let user_config = self
-            .state
-            .user_config
-            .read()
-            .map_err(lock_poisoned)?
-            .clone();
+        let user_config = self.effective_user_config()?;
         let mut runtime_config = RuntimeConfig {
             profile_id,
             cap_path: Some(cap_path),
+            classes_path: Some(classes_path),
+            runtime_classpath,
             simulator_metadata_path: Some(simulator_metadata_path),
             reader_name,
             ..RuntimeConfig::default()
@@ -1465,7 +1400,12 @@ impl JcimApp {
 
         let request = artifact_metadata_from_project(project_root, config)?;
         let toolchain = build_toolchain_layout()?;
-        let outcome = build_project_artifacts_if_stale(&request, &toolchain)?;
+        let java_runtime = self.resolved_java_runtime()?;
+        let outcome = build_project_artifacts_if_stale_with_java_bin(
+            &request,
+            &toolchain,
+            &java_runtime.java_bin,
+        )?;
         validate_simulation_artifacts(project_root, outcome.metadata)
     }
 
@@ -1478,7 +1418,13 @@ impl JcimApp {
         let metadata = if resolved.config.card.auto_build_before_install {
             let request = artifact_metadata_from_project(&resolved.project_root, &resolved.config)?;
             let toolchain = build_toolchain_layout()?;
-            build_project_artifacts_if_stale(&request, &toolchain)?.metadata
+            let java_runtime = self.resolved_java_runtime()?;
+            build_project_artifacts_if_stale_with_java_bin(
+                &request,
+                &toolchain,
+                &java_runtime.java_bin,
+            )?
+            .metadata
         } else {
             load_artifact_metadata(&resolved.project_root)?.ok_or_else(|| {
                 JcimError::Unsupported(
@@ -1638,6 +1584,24 @@ impl JcimApp {
     }
 }
 
+fn current_service_binary_identity() -> Result<(PathBuf, String)> {
+    let path = std::env::current_exe()?;
+    let metadata = std::fs::metadata(&path)?;
+    let modified = metadata
+        .modified()?
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    Ok((
+        path,
+        format!(
+            "{}:{}:{}",
+            metadata.len(),
+            modified.as_secs(),
+            modified.subsec_nanos()
+        ),
+    ))
+}
+
 impl SimulationRecord {
     fn summary(&self) -> SimulationSummary {
         SimulationSummary {
@@ -1717,68 +1681,15 @@ fn required_artifact_path(
     Ok(project_root.join(relative))
 }
 
-fn write_simulator_metadata_file(path: &Path, cap_package: &CapPackage) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let mut contents = String::new();
-    contents.push_str(&format!("package.name={}\n", cap_package.package_name));
-    contents.push_str(&format!(
-        "package.aid={}\n",
-        cap_package.package_aid.to_hex()
-    ));
-    contents.push_str(&format!(
-        "package.version={}.{}\n",
-        cap_package.package_major, cap_package.package_minor
-    ));
-    contents.push_str(&format!("applet.count={}\n", cap_package.applets.len()));
-    for (index, applet) in cap_package.applets.iter().enumerate() {
-        contents.push_str(&format!(
-            "applet.{index}.class={}\n",
-            applet.name.as_deref().unwrap_or("InstalledApplet")
-        ));
-        contents.push_str(&format!("applet.{index}.aid={}\n", applet.aid.to_hex()));
-    }
-    std::fs::write(path, contents)?;
-    Ok(())
-}
-
-fn profile_for_cap(cap_package: &CapPackage) -> jcim_core::model::CardProfileId {
-    match cap_package.version.minor {
-        1 => jcim_core::model::CardProfileId::Classic221,
-        _ => jcim_core::model::CardProfileId::Classic222,
-    }
-}
-
 fn engine_mode_for_current_host() -> SimulationEngineMode {
-    if cfg!(target_os = "macos") {
-        SimulationEngineMode::Container
-    } else {
-        SimulationEngineMode::Native
-    }
+    SimulationEngineMode::ManagedJava
 }
 
-fn ensure_host_simulator_environment(engine_mode: SimulationEngineMode) -> Result<()> {
-    required_container_command(
-        engine_mode,
-        std::env::var_os("JCIM_SIMULATOR_CONTAINER_CMD"),
-    )?;
-    Ok(())
-}
-
-fn required_container_command(
-    engine_mode: SimulationEngineMode,
-    container_command: Option<OsString>,
+fn ensure_host_simulator_environment(
+    _engine_mode: SimulationEngineMode,
+    _bundle_dir: &Path,
+    _profile_id: CardProfileId,
 ) -> Result<()> {
-    if engine_mode == SimulationEngineMode::Container
-        && container_command
-            .as_ref()
-            .is_none_or(|value| value.is_empty())
-    {
-        return Err(JcimError::Unsupported(
-            "macOS simulator startup requires JCIM_SIMULATOR_CONTAINER_CMD so JCIM can launch the official Linux-hosted simulator".to_string(),
-        ));
-    }
     Ok(())
 }
 
@@ -1803,6 +1714,22 @@ fn validate_simulation_artifacts(
             "expected simulator metadata is missing at {}",
             metadata_path.display()
         )));
+    }
+    let classes_path = project_root.join(&metadata.classes_path);
+    if !classes_path.exists() {
+        return Err(JcimError::Unsupported(format!(
+            "expected compiled classes are missing at {}",
+            classes_path.display()
+        )));
+    }
+    for dependency in &metadata.runtime_classpath {
+        let dependency_path = project_root.join(dependency);
+        if !dependency_path.exists() {
+            return Err(JcimError::Unsupported(format!(
+                "expected simulator runtime classpath entry is missing at {}",
+                dependency_path.display()
+            )));
+        }
     }
     Ok(metadata)
 }
@@ -1899,31 +1826,27 @@ fn sample_applet_source(package_name: &str, class_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{SimulationEngineMode, required_container_command};
+    use jcim_core::model::CardProfileId;
+
+    use super::{
+        SimulationEngineMode, engine_mode_for_current_host, ensure_host_simulator_environment,
+    };
 
     #[test]
-    fn native_mode_does_not_require_container_command() {
-        required_container_command(SimulationEngineMode::Native, None).expect("native");
+    fn simulator_engine_defaults_to_managed_java() {
+        assert_eq!(
+            engine_mode_for_current_host(),
+            SimulationEngineMode::ManagedJava
+        );
     }
 
     #[test]
-    fn container_mode_requires_non_empty_command() {
-        assert!(
-            required_container_command(SimulationEngineMode::Container, None)
-                .expect_err("missing command")
-                .to_string()
-                .contains("JCIM_SIMULATOR_CONTAINER_CMD")
-        );
-        assert!(
-            required_container_command(SimulationEngineMode::Container, Some("".into()))
-                .expect_err("empty command")
-                .to_string()
-                .contains("JCIM_SIMULATOR_CONTAINER_CMD")
-        );
-        required_container_command(
-            SimulationEngineMode::Container,
-            Some("docker run ...".into()),
+    fn host_environment_check_is_noop_for_managed_java() {
+        ensure_host_simulator_environment(
+            SimulationEngineMode::ManagedJava,
+            std::path::Path::new("/tmp/jcim/bundled-backends/simulator"),
+            CardProfileId::Classic304,
         )
-        .expect("configured container command");
+        .expect("managed java simulator environment");
     }
 }

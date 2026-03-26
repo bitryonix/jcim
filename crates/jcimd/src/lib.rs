@@ -21,7 +21,6 @@ use jcim_api::v0_2::file_selection_info::Selection as FileSelectionProto;
 use jcim_api::v0_2::install_cap_request::Input as InstallCapInput;
 use jcim_api::v0_2::project_service_server::{ProjectService, ProjectServiceServer};
 use jcim_api::v0_2::simulator_service_server::{SimulatorService, SimulatorServiceServer};
-use jcim_api::v0_2::start_simulation_request::Input as StartSimulationInput;
 use jcim_api::v0_2::system_service_server::{SystemService, SystemServiceServer};
 use jcim_api::v0_2::workspace_service_server::{WorkspaceService, WorkspaceServiceServer};
 use jcim_api::v0_2::{
@@ -233,23 +232,14 @@ impl SimulatorService for LocalRpc {
         request: Request<StartSimulationRequest>,
     ) -> Result<Response<StartSimulationResponse>, Status> {
         let request = request.into_inner();
-        let simulation = match request.input {
-            Some(StartSimulationInput::Project(project)) => self
-                .app
-                .start_project_simulation(&into_project_selector(project))
-                .await
-                .map_err(to_status)?,
-            Some(StartSimulationInput::CapPath(cap_path)) => self
-                .app
-                .start_cap_simulation(Path::new(&cap_path))
-                .await
-                .map_err(to_status)?,
-            None => {
-                return Err(Status::invalid_argument(
-                    "missing simulator input; provide a project selector or CAP path",
-                ));
-            }
-        };
+        let project = request.project.ok_or_else(|| {
+            Status::invalid_argument("missing simulator input; provide a project selector")
+        })?;
+        let simulation = self
+            .app
+            .start_project_simulation(&into_project_selector(project))
+            .await
+            .map_err(to_status)?;
         Ok(Response::new(StartSimulationResponse {
             simulation: Some(simulation_info(simulation)),
         }))
@@ -897,6 +887,7 @@ fn simulation_info(simulation: SimulationSummary) -> SimulationInfo {
         engine_mode: match simulation.engine_mode {
             jcim_app::SimulationEngineMode::Native => SimulationEngineMode::Native as i32,
             jcim_app::SimulationEngineMode::Container => SimulationEngineMode::Container as i32,
+            jcim_app::SimulationEngineMode::ManagedJava => SimulationEngineMode::ManagedJava as i32,
         },
         status: match simulation.status {
             jcim_app::SimulationStatusKind::Starting => SimulationStatus::Starting as i32,
@@ -1382,6 +1373,8 @@ fn service_status_response(status: ServiceStatusSummary) -> GetServiceStatusResp
         running: status.running,
         known_project_count: status.known_project_count,
         active_simulation_count: status.active_simulation_count,
+        service_binary_path: status.service_binary_path.display().to_string(),
+        service_binary_fingerprint: status.service_binary_fingerprint,
     }
 }
 

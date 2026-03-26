@@ -1511,7 +1511,7 @@ async fn run_card_helper_with_env(
     let mut command = Command::new(&user_config.java_bin);
     command
         .arg("-cp")
-        .arg(helper_jar_path())
+        .arg(helper_classpath())
         .arg("jcim.cardhelper.Main")
         .arg(action)
         .stdout(Stdio::piped())
@@ -1524,6 +1524,15 @@ async fn run_card_helper_with_env(
     }
     command.args(extra_args);
     run_command_to_string(command, format!("card helper {action}")).await
+}
+
+fn helper_classpath() -> String {
+    let separator = if cfg!(windows) { ";" } else { ":" };
+    [helper_jar_path(), gppro_jar_path()]
+        .into_iter()
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>()
+        .join(separator)
 }
 
 async fn run_gppro(user_config: &UserConfig, args: &[String]) -> Result<CardToolOutput> {

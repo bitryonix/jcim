@@ -2,13 +2,16 @@
 
 ## Simulator-first product
 
-- JCIM 0.2 is centered on one primary capability: APDU-driven Java Card simulation from CAP input.
-- Source projects are supported by building them to CAP and starting the same simulator flow.
+- JCIM 0.2 is centered on one primary capability: APDU-driven Java Card simulation from JCIM
+  project builds.
+- Source projects are supported by building them once and starting a managed class-backed
+  simulation from the emitted classes, runtime classpath, and simulator metadata.
 - Physical-card utilities remain in scope, but they are explicitly secondary.
 
 Reason:
 - the workspace should optimize for one honest simulator story instead of multiple weaker runtime stories
-- CAP-first behavior keeps source builds and raw CAP usage aligned
+- project-backed behavior keeps source builds, examples, and simulator execution aligned across
+  macOS and Linux without extra operator setup
 
 ## Service-first control plane
 
@@ -49,7 +52,7 @@ Reason:
 
 Reason:
 - the simulator contract should be explicit, testable, and GUI-ready
-- raw `.cap` input must be a first-class API concept rather than a hidden internal path
+- project-backed startup keeps the maintained simulator contract narrow and explicit
 - typed card responses should remove the need for Rust or CLI callers to parse helper text
 
 ## CLI redesign
@@ -68,12 +71,17 @@ Reason:
 ## Simulator engine posture
 
 - The maintained backend kind is `simulator`.
-- The maintained simulator backend is the official CAP-capable Java Card simulator tooling.
-- `builtin` and `jcardsim` are removed from the maintained product surface.
+- The maintained simulator backend is a bundled managed-Java `jcardsim` engine.
+- It loads applets from project build outputs instead of installing CAP files into an external
+  simulator process.
+- `native` and `container` engine modes remain decode-compatible for one release, but
+  `managed_java` is the maintained engine mode for new simulations.
 
 Reason:
-- builtin execution was not high fidelity
-- `jcardsim` was JAR-backed and did not make raw CAP a first-class simulator input
+- zero-setup macOS and Linux behavior matters more than preserving the old official-simulator path
+- a managed class-backed simulator keeps the maintained path deterministic and self-contained
+- CAP artifacts still matter for install and build inspection, but not as a maintained simulator
+  startup path
 
 ## Configuration model
 

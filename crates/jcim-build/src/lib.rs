@@ -9,6 +9,7 @@ mod build;
 pub use build::{
     ArtifactMetadata, BuildAppletMetadata, BuildArtifactRequest, BuildOutcome, ToolchainLayout,
     artifact_metadata_from_project, build_project_artifacts, build_project_artifacts_if_stale,
+    build_project_artifacts_if_stale_with_java_bin, build_project_artifacts_with_java_bin,
     build_toolchain_layout, load_artifact_metadata,
 };
 pub use jcim_config::project::{ArtifactKind, BuildKind};

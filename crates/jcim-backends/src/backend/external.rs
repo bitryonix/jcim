@@ -191,7 +191,16 @@ fn build_java_command(
     manifest: &BackendBundleManifest,
     bundle_dir: &Path,
 ) -> Result<Command> {
-    let classpath = resolve_classpath(bundle_dir, &manifest.classpath)?;
+    let mut classpath = resolve_classpath(bundle_dir, &manifest.classpath)?;
+    if let Some(classes_path) = &config.classes_path {
+        classpath.push(classes_path.display().to_string());
+    }
+    classpath.extend(
+        config
+            .runtime_classpath
+            .iter()
+            .map(|path| path.display().to_string()),
+    );
     if classpath.is_empty() {
         return Err(JcimError::BackendStartup(format!(
             "no backend classpath entries resolved from {}",

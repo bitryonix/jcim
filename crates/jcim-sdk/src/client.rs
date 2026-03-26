@@ -9,6 +9,7 @@ use std::time::Duration;
 use hyper_util::rt::TokioIo;
 use tokio::net::UnixStream;
 use tokio::time::sleep;
+use tonic::Code;
 use tonic::transport::{Channel, Endpoint};
 use tower::service_fn;
 
@@ -17,7 +18,6 @@ use jcim_api::v0_2::card_service_client::CardServiceClient;
 use jcim_api::v0_2::install_cap_request::Input as InstallCapInput;
 use jcim_api::v0_2::project_service_client::ProjectServiceClient;
 use jcim_api::v0_2::simulator_service_client::SimulatorServiceClient;
-use jcim_api::v0_2::start_simulation_request::Input as StartSimulationInput;
 use jcim_api::v0_2::system_service_client::SystemServiceClient;
 use jcim_api::v0_2::workspace_service_client::WorkspaceServiceClient;
 use jcim_api::v0_2::{
@@ -33,6 +33,7 @@ use jcim_api::v0_2::{
 use jcim_config::project::ManagedPaths;
 use jcim_core::aid::Aid;
 use jcim_core::apdu::{CommandApdu, ResponseApdu};
+use jcim_core::error::JcimError;
 use jcim_core::globalplatform;
 use jcim_core::iso7816::{
     self, Atr, CommandDomain, CommandKind, FileSelection, IsoCapabilities, IsoSessionState,
@@ -40,15 +41,17 @@ use jcim_core::iso7816::{
     SecureMessagingProtocol, SecureMessagingState, StatusWord, TransportProtocol,
 };
 
+use crate::connection::CardConnection;
 use crate::error::{JcimSdkError, Result};
 use crate::types::{
     ApduExchangeSummary, AppletSummary, ArtifactSummary, BuildSummary, CardAppletInventory,
-    CardAppletSummary, CardDeleteSummary, CardInstallSource, CardInstallSummary,
-    CardPackageInventory, CardPackageSummary, CardReaderSummary, CardStatusSummary, EventLine,
-    GpSecureChannelSummary, ManageChannelSummary, OverviewSummary, ProjectDetails, ProjectRef,
-    ProjectSummary, ReaderRef, ResetSummary, SecureMessagingSummary, ServiceStatusSummary,
-    SetupSummary, SimulationEngineMode, SimulationInput, SimulationRef, SimulationSourceKind,
-    SimulationStatus, SimulationSummary, owned_path,
+    CardAppletSummary, CardConnectionLocator, CardConnectionTarget, CardDeleteSummary,
+    CardInstallSource, CardInstallSummary, CardPackageInventory, CardPackageSummary,
+    CardReaderSummary, CardStatusSummary, EventLine, GpSecureChannelSummary, ManageChannelSummary,
+    OverviewSummary, ProjectDetails, ProjectRef, ProjectSummary, ReaderRef, ResetSummary,
+    SecureMessagingSummary, ServiceStatusSummary, SetupSummary, SimulationEngineMode,
+    SimulationInput, SimulationRef, SimulationSourceKind, SimulationStatus, SimulationSummary,
+    owned_path,
 };
 
 /// Canonical async Rust client for the local JCIM service.
@@ -83,10 +86,15 @@ impl JcimClient {
     /// Connect to the local JCIM service, starting it if needed, using explicit managed paths.
     pub async fn connect_or_start_with_paths(managed_paths: ManagedPaths) -> Result<Self> {
         if let Ok(channel) = connect_channel(&managed_paths.service_socket_path).await {
-            return Ok(Self {
-                managed_paths,
+            let client = Self {
+                managed_paths: managed_paths.clone(),
                 channel,
-            });
+            };
+            if client.connected_service_matches_current_binary().await? {
+                return Ok(client);
+            }
+            drop(client);
+            disconnect_stale_service_socket(&managed_paths)?;
         }
 
         let mut service = spawn_service(&managed_paths)?;
@@ -125,6 +133,48 @@ impl JcimClient {
     /// Return the managed local paths associated with this client.
     pub fn managed_paths(&self) -> &ManagedPaths {
         &self.managed_paths
+    }
+
+    /// Open one unified APDU connection against a real reader or one virtual simulation.
+    pub async fn open_card_connection(
+        &self,
+        target: CardConnectionTarget,
+    ) -> Result<CardConnection> {
+        let locator = match target {
+            CardConnectionTarget::Reader(reader) => {
+                let status = self.validated_card_status_for_connection(reader).await?;
+                let reader_name = status.reader_name.trim().to_string();
+                if reader_name.is_empty() {
+                    return Err(JcimSdkError::InvalidResponse(
+                        "service returned an empty reader name for an opened card connection"
+                            .to_string(),
+                    ));
+                }
+                CardConnectionLocator::Reader { reader_name }
+            }
+            CardConnectionTarget::ExistingSimulation(simulation) => {
+                let summary = self.validated_running_simulation(simulation).await?;
+                CardConnectionLocator::Simulation {
+                    simulation: summary.simulation_ref(),
+                    owned: false,
+                }
+            }
+            CardConnectionTarget::StartSimulation(input) => {
+                let summary = self.start_simulation(input).await?;
+                if summary.status != SimulationStatus::Running {
+                    let _ = self.stop_simulation(summary.simulation_ref()).await;
+                    return Err(invalid_connection_target(format!(
+                        "simulation `{}` is not running; current status is {:?}",
+                        summary.simulation_id, summary.status
+                    )));
+                }
+                CardConnectionLocator::Simulation {
+                    simulation: summary.simulation_ref(),
+                    owned: true,
+                }
+            }
+        };
+        Ok(CardConnection::new(self.clone(), locator))
     }
 
     /// Fetch a high-level overview of the local JCIM service state.
@@ -243,16 +293,11 @@ impl JcimClient {
             .collect()
     }
 
-    /// Start one simulation from a project or raw CAP.
+    /// Start one simulation from a JCIM project.
     pub async fn start_simulation(&self, input: SimulationInput) -> Result<SimulationSummary> {
         let request = StartSimulationRequest {
-            input: Some(match input {
-                SimulationInput::Project(project) => {
-                    StartSimulationInput::Project(project_selector(&project))
-                }
-                SimulationInput::Cap(cap_path) => {
-                    StartSimulationInput::CapPath(cap_path.display().to_string())
-                }
+            project: Some(match input {
+                SimulationInput::Project(project) => project_selector(&project),
             }),
         };
         let simulation = SimulatorServiceClient::new(self.channel.clone())
@@ -573,16 +618,6 @@ impl JcimClient {
             .await?
             .into_inner();
         reset_summary_from_simulation_proto(response)
-    }
-
-    /// Reset one running simulation and return the new ATR as a compatibility helper.
-    pub async fn reset_simulation(&self, simulation: SimulationRef) -> Result<String> {
-        let summary = self.reset_simulation_summary(simulation).await?;
-        Ok(summary
-            .atr
-            .as_ref()
-            .map(|atr| hex::encode_upper(&atr.raw))
-            .unwrap_or_default())
     }
 
     /// List visible physical readers.
@@ -1104,16 +1139,6 @@ impl JcimClient {
         self.reset_card_summary_on(ReaderRef::Default).await
     }
 
-    /// Reset the configured default reader and return the ATR as a compatibility helper.
-    pub async fn reset_card(&self) -> Result<String> {
-        let summary = self.reset_card_summary().await?;
-        Ok(summary
-            .atr
-            .as_ref()
-            .map(|atr| hex::encode_upper(&atr.raw))
-            .unwrap_or_default())
-    }
-
     /// Reset one explicit reader and return the typed reset summary.
     pub async fn reset_card_summary_on(&self, reader: ReaderRef) -> Result<ResetSummary> {
         let response = CardServiceClient::new(self.channel.clone())
@@ -1123,16 +1148,6 @@ impl JcimClient {
             .await?
             .into_inner();
         reset_summary_from_card_proto(response)
-    }
-
-    /// Reset one explicit reader and return the ATR as a compatibility helper.
-    pub async fn reset_card_on(&self, reader: ReaderRef) -> Result<String> {
-        let summary = self.reset_card_summary_on(reader).await?;
-        Ok(summary
-            .atr
-            .as_ref()
-            .map(|atr| hex::encode_upper(&atr.raw))
-            .unwrap_or_default())
     }
 
     /// Persist machine-local toolchain settings.
@@ -1165,6 +1180,8 @@ impl JcimClient {
             running,
             known_project_count,
             active_simulation_count,
+            service_binary_path,
+            service_binary_fingerprint,
         } = SystemServiceClient::new(self.channel.clone())
             .get_service_status(Empty {})
             .await?
@@ -1174,7 +1191,66 @@ impl JcimClient {
             running,
             known_project_count,
             active_simulation_count,
+            service_binary_path: owned_path(service_binary_path),
+            service_binary_fingerprint,
         })
+    }
+}
+
+impl JcimClient {
+    async fn connected_service_matches_current_binary(&self) -> Result<bool> {
+        let status = match self.service_status().await {
+            Ok(status) => status,
+            Err(JcimSdkError::Status(status)) if status.code() == Code::Unimplemented => {
+                return Ok(false);
+            }
+            Err(error) => return Err(error),
+        };
+        let expected_identity = local_service_binary_identity(&service_binary_path()?)?;
+        Ok(service_status_matches_binary(&status, &expected_identity))
+    }
+
+    async fn validated_card_status_for_connection(
+        &self,
+        reader: ReaderRef,
+    ) -> Result<CardStatusSummary> {
+        if let ReaderRef::Named(reader_name) = &reader
+            && reader_name.trim().is_empty()
+        {
+            return Err(invalid_connection_target(
+                "reader connection requires a non-empty reader name".to_string(),
+            ));
+        }
+        let status = self.get_card_status_on(reader).await?;
+        if !status.card_present {
+            let reader_name = status.reader_name.trim();
+            let message = if reader_name.is_empty() {
+                "reader connection requires a present card".to_string()
+            } else {
+                format!("reader `{reader_name}` has no present card")
+            };
+            return Err(invalid_connection_target(message));
+        }
+        Ok(status)
+    }
+
+    async fn validated_running_simulation(
+        &self,
+        simulation: SimulationRef,
+    ) -> Result<SimulationSummary> {
+        if simulation.simulation_id.trim().is_empty() {
+            return Err(invalid_connection_target(
+                "simulation connection requires a non-empty simulation id".to_string(),
+            ));
+        }
+        let summary = self.get_simulation(simulation).await?;
+        if summary.status != SimulationStatus::Running {
+            return Err(invalid_connection_target(format!(
+                "simulation `{}` is not running; current status is {:?}",
+                summary.simulation_id, summary.status
+            )));
+        }
+        Ok(summary)
     }
 }
 
@@ -1190,9 +1266,19 @@ async fn connect_channel(
         .await
 }
 
+fn invalid_connection_target(message: String) -> JcimSdkError {
+    JcimError::Unsupported(message).into()
+}
+
 struct SpawnedService {
     child: std::process::Child,
     stderr_log_path: PathBuf,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ServiceBinaryIdentity {
+    path: PathBuf,
+    fingerprint: String,
 }
 
 fn spawn_service(managed_paths: &ManagedPaths) -> Result<SpawnedService> {
@@ -1227,6 +1313,72 @@ fn read_bootstrap_log_tail(path: &Path) -> Option<String> {
     } else {
         Some(trimmed.to_string())
     }
+}
+
+fn disconnect_stale_service_socket(managed_paths: &ManagedPaths) -> Result<()> {
+    best_effort_terminate_stale_socket_owners(&managed_paths.service_socket_path);
+    match std::fs::remove_file(&managed_paths.service_socket_path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn best_effort_terminate_stale_socket_owners(socket_path: &Path) {
+    let output = match Command::new("lsof")
+        .arg("-t")
+        .arg(socket_path)
+        .stdin(Stdio::null())
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return,
+    };
+    if !output.status.success() {
+        return;
+    }
+
+    let current_pid = std::process::id();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let Ok(pid) = line.trim().parse::<u32>() else {
+            continue;
+        };
+        if pid == current_pid {
+            continue;
+        }
+        let _ = Command::new("kill")
+            .arg(pid.to_string())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+}
+
+fn local_service_binary_identity(path: &Path) -> Result<ServiceBinaryIdentity> {
+    let metadata = std::fs::metadata(path)?;
+    let modified = metadata
+        .modified()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    Ok(ServiceBinaryIdentity {
+        path: path.to_path_buf(),
+        fingerprint: format!(
+            "{}:{}:{}",
+            metadata.len(),
+            modified.as_secs(),
+            modified.subsec_nanos()
+        ),
+    })
+}
+
+fn service_status_matches_binary(
+    status: &ServiceStatusSummary,
+    identity: &ServiceBinaryIdentity,
+) -> bool {
+    status.service_binary_path == identity.path
+        && !status.service_binary_fingerprint.trim().is_empty()
+        && status.service_binary_fingerprint == identity.fingerprint
 }
 
 fn service_binary_path() -> Result<PathBuf> {
@@ -1329,6 +1481,9 @@ fn simulation_summary(simulation: jcim_api::v0_2::SimulationInfo) -> Result<Simu
         engine_mode: match jcim_api::v0_2::SimulationEngineMode::try_from(simulation.engine_mode) {
             Ok(jcim_api::v0_2::SimulationEngineMode::Native) => SimulationEngineMode::Native,
             Ok(jcim_api::v0_2::SimulationEngineMode::Container) => SimulationEngineMode::Container,
+            Ok(jcim_api::v0_2::SimulationEngineMode::ManagedJava) => {
+                SimulationEngineMode::ManagedJava
+            }
             _ => SimulationEngineMode::Unknown,
         },
         status: match jcim_api::v0_2::SimulationStatus::try_from(simulation.status) {
@@ -1691,12 +1846,45 @@ fn secure_messaging_protocol_from_proto(
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::binary_candidates;
+    use crate::types::ServiceStatusSummary;
+
+    use super::{ServiceBinaryIdentity, binary_candidates, service_status_matches_binary};
 
     #[test]
     fn binary_candidates_check_parent_and_grandparent() {
         let candidates = binary_candidates(Path::new("/tmp/target/debug/examples/demo"), "jcimd");
         assert!(candidates.contains(&PathBuf::from("/tmp/target/debug/examples/jcimd")));
         assert!(candidates.contains(&PathBuf::from("/tmp/target/debug/jcimd")));
+    }
+
+    #[test]
+    fn service_status_requires_matching_binary_identity() {
+        let identity = ServiceBinaryIdentity {
+            path: PathBuf::from("/tmp/jcimd"),
+            fingerprint: "123:456:789".to_string(),
+        };
+        let matching = ServiceStatusSummary {
+            socket_path: PathBuf::from("/tmp/jcimd.sock"),
+            running: true,
+            known_project_count: 0,
+            active_simulation_count: 0,
+            service_binary_path: identity.path.clone(),
+            service_binary_fingerprint: identity.fingerprint.clone(),
+        };
+        let missing_fingerprint = ServiceStatusSummary {
+            service_binary_fingerprint: String::new(),
+            ..matching.clone()
+        };
+        let wrong_path = ServiceStatusSummary {
+            service_binary_path: PathBuf::from("/tmp/other-jcimd"),
+            ..matching.clone()
+        };
+
+        assert!(service_status_matches_binary(&matching, &identity));
+        assert!(!service_status_matches_binary(
+            &missing_fingerprint,
+            &identity
+        ));
+        assert!(!service_status_matches_binary(&wrong_path, &identity));
     }
 }

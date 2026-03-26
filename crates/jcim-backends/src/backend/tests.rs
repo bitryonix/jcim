@@ -33,7 +33,7 @@ fn temp_path(suffix: &str) -> PathBuf {
 }
 
 #[test]
-fn validate_external_config_requires_cap_input() {
+fn validate_external_config_requires_classes_and_metadata_inputs() {
     let manifest = BackendBundleManifest {
         protocol_version: default_protocol_version(),
         main_class: "example.Main".to_string(),
@@ -41,22 +41,31 @@ fn validate_external_config_requires_cap_input() {
         args: Vec::new(),
         env: BTreeMap::new(),
         startup_timeout_ms: 1_000,
-        accepts_cap: true,
         supported_profiles: vec![CardProfileId::Classic221, CardProfileId::Classic222],
     };
 
     let config = RuntimeConfig {
         profile_id: CardProfileId::Classic221,
         cap_path: Some(PathBuf::from("/tmp/mock.cap")),
+        classes_path: Some(PathBuf::from("/tmp/mock-classes")),
+        simulator_metadata_path: Some(PathBuf::from("/tmp/mock-simulator.properties")),
         ..RuntimeConfig::default()
     };
     validate_external_config(&config, &manifest).expect("simulator config");
 
-    let missing_cap = RuntimeConfig {
+    let missing_classes = RuntimeConfig {
         profile_id: CardProfileId::Classic221,
+        simulator_metadata_path: Some(PathBuf::from("/tmp/mock-simulator.properties")),
         ..RuntimeConfig::default()
     };
-    assert!(validate_external_config(&missing_cap, &manifest).is_err());
+    assert!(validate_external_config(&missing_classes, &manifest).is_err());
+
+    let missing_metadata = RuntimeConfig {
+        profile_id: CardProfileId::Classic221,
+        classes_path: Some(PathBuf::from("/tmp/mock-classes")),
+        ..RuntimeConfig::default()
+    };
+    assert!(validate_external_config(&missing_metadata, &manifest).is_err());
 }
 
 #[test]
@@ -68,12 +77,12 @@ fn validate_external_config_rejects_unsupported_profile() {
         args: Vec::new(),
         env: BTreeMap::new(),
         startup_timeout_ms: 1_000,
-        accepts_cap: true,
         supported_profiles: vec![CardProfileId::Classic221],
     };
     let config = RuntimeConfig {
         profile_id: CardProfileId::Classic305,
-        cap_path: Some(PathBuf::from("/tmp/mock.cap")),
+        classes_path: Some(PathBuf::from("/tmp/mock-classes")),
+        simulator_metadata_path: Some(PathBuf::from("/tmp/mock-simulator.properties")),
         ..RuntimeConfig::default()
     };
     let error = validate_external_config(&config, &manifest).expect_err("profile error");
@@ -133,7 +142,7 @@ fn parse_reply_lines_and_operation_checks_enforce_json_contract() {
 #[test]
 fn parse_handshake_reply_extracts_capabilities() {
     let reply = parse_reply_line(
-        r#"{"op":"handshake","ok":true,"handshake":{"protocol_version":"1.0","backend_kind":"simulator","reader_name":"Mock","backend_capabilities":{"protocol_version":"1.0","iso_capabilities":{"protocols":["T1"],"extended_length":true,"logical_channels":true,"max_logical_channels":4,"secure_messaging":true,"file_model_visibility":true,"raw_apdu":true},"accepts_cap":true,"supports_typed_apdu":true,"supports_raw_apdu":true,"supports_apdu":true,"supports_reset":true,"supports_power_control":true,"supports_get_session_state":true,"supports_manage_channel":true,"supports_secure_messaging":true,"supports_snapshot":true,"supports_install":true,"supports_delete":false,"supports_backend_health":true,"executes_real_methods":true,"wire_compatible_scp02":true,"wire_compatible_scp03":true,"supported_profiles":["classic221","classic222"]}}}"#,
+        r#"{"op":"handshake","ok":true,"handshake":{"protocol_version":"1.0","backend_kind":"simulator","reader_name":"Mock","backend_capabilities":{"protocol_version":"1.0","iso_capabilities":{"protocols":["T1"],"extended_length":true,"logical_channels":true,"max_logical_channels":4,"secure_messaging":true,"file_model_visibility":false,"raw_apdu":true},"supports_typed_apdu":true,"supports_raw_apdu":true,"supports_apdu":true,"supports_reset":true,"supports_power_control":true,"supports_get_session_state":true,"supports_manage_channel":true,"supports_secure_messaging":true,"supports_snapshot":true,"supports_install":false,"supports_delete":false,"supports_backend_health":true,"executes_real_methods":true,"wire_compatible_scp02":false,"wire_compatible_scp03":false,"supported_profiles":["classic221","classic222"]}}}"#,
     )
     .expect("handshake");
     ensure_reply_operation(&reply, BackendOperation::Handshake).expect("handshake op");
@@ -158,7 +167,8 @@ fn parse_handshake_reply_extracts_capabilities() {
     );
     assert!(backend_capabilities.supports_typed_apdu);
     assert!(backend_capabilities.supports_manage_channel);
-    assert!(backend_capabilities.wire_compatible_scp02);
+    assert!(!backend_capabilities.supports_install);
+    assert!(!backend_capabilities.wire_compatible_scp02);
 }
 
 #[test]
@@ -175,10 +185,9 @@ fn parse_runtime_snapshot_preserves_selected_aid_in_session_state() {
                 logical_channels: true,
                 max_logical_channels: 4,
                 secure_messaging: true,
-                file_model_visibility: true,
+                file_model_visibility: false,
                 raw_apdu: true,
             },
-            accepts_cap: true,
             supports_typed_apdu: true,
             supports_raw_apdu: true,
             supports_apdu: true,
@@ -188,12 +197,12 @@ fn parse_runtime_snapshot_preserves_selected_aid_in_session_state() {
             supports_manage_channel: true,
             supports_secure_messaging: true,
             supports_snapshot: true,
-            supports_install: true,
+            supports_install: false,
             supports_delete: false,
             supports_backend_health: true,
             executes_real_methods: true,
-            wire_compatible_scp02: true,
-            wire_compatible_scp03: true,
+            wire_compatible_scp02: false,
+            wire_compatible_scp03: false,
             supported_profiles: vec![CardProfileId::Classic222],
         },
         atr_hex: "3B800100".to_string(),
@@ -204,7 +213,7 @@ fn parse_runtime_snapshot_preserves_selected_aid_in_session_state() {
             logical_channels: true,
             max_logical_channels: 4,
             secure_messaging: true,
-            file_model_visibility: true,
+            file_model_visibility: false,
             raw_apdu: true,
         },
         power_on: true,

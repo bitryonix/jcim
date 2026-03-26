@@ -1,22 +1,20 @@
 package jcim.backend;
 
-import com.sun.javacard.apduio.Apdu;
-import com.sun.javacard.apduio.CadClientInterface;
-import com.sun.javacard.apduio.CadDevice;
-import com.sun.javacard.apduio.CadTransportException;
+import com.licel.jcardsim.base.Simulator;
+import com.licel.jcardsim.utils.AIDUtil;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,12 +22,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import javacard.framework.AID;
 
 public final class SimulatorMain {
+    private static final String DEFAULT_PACKAGE_NAME = "jcim.bundled.applet";
     private static final String DEFAULT_PACKAGE_AID = "A00000006203010C01";
-    private static final String DEFAULT_APPLET_AID = "A00000006203010C0101";
     private static final String DEFAULT_VERSION = "1.0";
-    private static final String SUPPORTED_PROFILES = "classic221,classic222,classic301,classic304,classic305";
+    private static final String ATR_SYSTEM_PROPERTY = "com.licel.jcardsim.card.ATR";
+    private static final PrintStream QUIET_STDOUT = new PrintStream(OutputStream.nullOutputStream());
 
     private SimulatorMain() {}
 
@@ -40,19 +40,16 @@ public final class SimulatorMain {
         String version = options.getOrDefault("--version", profileVersion(profileId));
         String readerName = options.getOrDefault("--reader-name", "JCIM Simulation");
         String atrHex = options.getOrDefault("--atr", profileAtr(profileId));
-        String capPathValue = requireOption(options, "--cap-path");
-        Path capPath = Path.of(capPathValue);
-        if (!Files.exists(capPath)) {
-            throw new IllegalArgumentException("CAP path does not exist: " + capPath);
+        Path metadataPath = Path.of(requireOption(options, "--simulator-metadata"));
+        if (!Files.exists(metadataPath)) {
+            throw new IllegalArgumentException("simulator metadata does not exist: " + metadataPath);
         }
-        Path metadataPath =
-                options.containsKey("--simulator-metadata")
-                        ? Path.of(options.get("--simulator-metadata"))
-                        : null;
 
-        RuntimeDescriptor descriptor = RuntimeDescriptor.load(metadataPath, capPath);
+        RuntimeDescriptor descriptor = RuntimeDescriptor.load(metadataPath);
         ProfileSpec profile = ProfileSpec.forId(profileId, version, readerName, atrHex);
-        OfficialSimulatorRuntime runtime = new OfficialSimulatorRuntime(backendKind, profile, descriptor, capPath);
+        ManagedJavaSimulatorRuntime runtime =
+                new ManagedJavaSimulatorRuntime(
+                        backendKind, profile, descriptor, options.get("--cap-path"));
         runtime.start();
 
         BufferedReader reader =
@@ -379,15 +376,18 @@ public final class SimulatorMain {
 
     private static String profileAtr(String profileId) {
         switch (profileId) {
+            case "classic21":
+            case "classic211":
+                return "3B80800121";
             case "classic221":
             case "classic222":
-                return "3B800100";
+                return "3B80800122";
             case "classic301":
             case "classic304":
             case "classic305":
-                return "3B800100";
+                return "3B8180013005";
             default:
-                return "3B800100";
+                return "3B80800122";
         }
     }
 
@@ -406,7 +406,6 @@ public final class SimulatorMain {
         final int pageBytes;
         final int eraseBlockBytes;
         final int journalLimit;
-        final String sdkDir;
 
         private ProfileSpec(
                 String id,
@@ -422,8 +421,7 @@ public final class SimulatorMain {
                 int stackLimit,
                 int pageBytes,
                 int eraseBlockBytes,
-                int journalLimit,
-                String sdkDir) {
+                int journalLimit) {
             this.id = id;
             this.version = version;
             this.readerName = readerName;
@@ -438,26 +436,25 @@ public final class SimulatorMain {
             this.pageBytes = pageBytes;
             this.eraseBlockBytes = eraseBlockBytes;
             this.journalLimit = journalLimit;
-            this.sdkDir = sdkDir;
         }
 
         static ProfileSpec forId(String id, String version, String readerName, String atrHex) {
             switch (id) {
                 case "classic221":
                     return new ProfileSpec(
-                            id, version, readerName, atrHex, 262144, 16384, 4096, 261, 4096, 24576, 12288, 256, 1024, 4096, "jc221_kit");
+                            id, version, readerName, atrHex, 262144, 16384, 4096, 261, 4096, 24576, 12288, 256, 1024, 4096);
                 case "classic222":
                     return new ProfileSpec(
-                            id, version, readerName, atrHex, 262144, 16384, 4096, 261, 4096, 24576, 12288, 256, 1024, 4096, "jc222_kit");
+                            id, version, readerName, atrHex, 262144, 16384, 4096, 261, 4096, 24576, 12288, 256, 1024, 4096);
                 case "classic301":
                     return new ProfileSpec(
-                            id, version, readerName, atrHex, 524288, 32768, 8192, 2048, 8192, 65536, 32768, 512, 2048, 8192, "jc303_kit");
+                            id, version, readerName, atrHex, 524288, 32768, 8192, 2048, 8192, 65536, 32768, 512, 2048, 8192);
                 case "classic304":
                     return new ProfileSpec(
-                            id, version, readerName, atrHex, 524288, 32768, 8192, 2048, 8192, 65536, 32768, 512, 2048, 8192, "jc304_kit");
+                            id, version, readerName, atrHex, 524288, 32768, 8192, 2048, 8192, 65536, 32768, 512, 2048, 8192);
                 case "classic305":
                     return new ProfileSpec(
-                            id, version, readerName, atrHex, 524288, 32768, 8192, 2048, 8192, 65536, 32768, 512, 2048, 8192, "jc305u4_kit");
+                            id, version, readerName, atrHex, 524288, 32768, 8192, 2048, 8192, 65536, 32768, 512, 2048, 8192);
                 default:
                     throw new IllegalArgumentException("unsupported profile " + id);
             }
@@ -487,27 +484,26 @@ public final class SimulatorMain {
             this.applets = applets;
         }
 
-        static RuntimeDescriptor load(Path metadataPath, Path capPath) throws IOException {
+        static RuntimeDescriptor load(Path metadataPath) throws IOException {
             Properties properties = new Properties();
-            if (metadataPath != null && Files.exists(metadataPath)) {
-                try (InputStream input = Files.newInputStream(metadataPath)) {
-                    properties.load(input);
-                }
+            try (InputStream input = Files.newInputStream(metadataPath)) {
+                properties.load(input);
             }
             List<AppletDescriptor> applets = new ArrayList<>();
             int appletCount = parseInt(properties.getProperty("applet.count"), 0);
             for (int index = 0; index < appletCount; index++) {
                 String className = properties.getProperty("applet." + index + ".class");
                 String aid = properties.getProperty("applet." + index + ".aid");
-                if (className != null && aid != null) {
+                if (className != null && !className.isEmpty() && aid != null && !aid.isEmpty()) {
                     applets.add(new AppletDescriptor(className, aid));
                 }
             }
             if (applets.isEmpty()) {
-                applets.add(new AppletDescriptor("InstalledApplet", DEFAULT_APPLET_AID));
+                throw new IllegalArgumentException(
+                        "simulator metadata did not declare any applets in " + metadataPath);
             }
             return new RuntimeDescriptor(
-                    properties.getProperty("package.name", derivePackageName(capPath)),
+                    properties.getProperty("package.name", DEFAULT_PACKAGE_NAME),
                     properties.getProperty("package.aid", DEFAULT_PACKAGE_AID),
                     properties.getProperty("package.version", DEFAULT_VERSION),
                     applets);
@@ -518,16 +514,6 @@ public final class SimulatorMain {
                 return fallback;
             }
             return Integer.parseInt(value);
-        }
-
-        private static String derivePackageName(Path capPath) {
-            String fileName = capPath.getFileName().toString();
-            int separator = fileName.lastIndexOf('.');
-            String stem = separator >= 0 ? fileName.substring(0, separator) : fileName;
-            if (stem.isEmpty()) {
-                return "jcim.bundled.cap";
-            }
-            return "jcim.bundled." + stem.replace('-', '_');
         }
     }
 
@@ -556,49 +542,72 @@ public final class SimulatorMain {
         }
     }
 
-    private static final class OfficialSimulatorRuntime {
+    private static final class ManagedJavaSimulatorRuntime {
         private final String backendKind;
         private final ProfileSpec profile;
         private final RuntimeDescriptor descriptor;
-        private final Path capPath;
+        private final String capPathLabel;
         private final Map<Integer, ChannelState> openChannels;
         private final SecureMessagingTracker secureMessaging;
 
-        private Process process;
-        private Socket socket;
-        private CadClientInterface cad;
-        private int port;
+        private Simulator simulator;
         private boolean powerOn;
         private boolean installed;
         private String currentAtrHex;
         private String selectedAid;
+        private String runtimeSelectedAid;
         private Integer lastStatusWord;
 
-        OfficialSimulatorRuntime(String backendKind, ProfileSpec profile, RuntimeDescriptor descriptor, Path capPath) {
+        @FunctionalInterface
+        private interface QuietSupplier<T> {
+            T run();
+        }
+
+        ManagedJavaSimulatorRuntime(
+                String backendKind, ProfileSpec profile, RuntimeDescriptor descriptor, String capPathLabel) {
             this.backendKind = backendKind;
             this.profile = profile;
             this.descriptor = descriptor;
-            this.capPath = capPath;
+            this.capPathLabel = capPathLabel;
             this.openChannels = new LinkedHashMap<>();
             this.secureMessaging = new SecureMessagingTracker();
             this.currentAtrHex = profile.atrHex;
             this.selectedAid = null;
+            this.runtimeSelectedAid = null;
         }
 
         void start() {
             try {
-                this.port = chooseFreePort();
-                this.process = launchProcess();
-                this.cad = connectClient();
-                this.currentAtrHex = encodeHex(cad.powerUp());
-                this.powerOn = true;
+                withQuietStdout(
+                        () -> {
+                            System.setProperty(ATR_SYSTEM_PROPERTY, profile.atrHex);
+                            this.simulator = new Simulator();
+                            this.simulator.changeProtocol("T=1");
+                            installDeclaredApplets();
+                            this.installed = true;
+                            this.powerOn = true;
+                            this.currentAtrHex = profile.atrHex;
+                            this.simulator.reset();
+                            return null;
+                        });
                 resetTrackedSession();
-                installCap();
-                this.installed = true;
-                resetTrackedSession();
-            } catch (IOException | CadTransportException exception) {
+            } catch (RuntimeException exception) {
                 shutdown();
-                throw new IllegalStateException("failed to start official simulator: " + exception.getMessage(), exception);
+                throw new IllegalStateException(
+                        "failed to start managed Java simulator: " + exception.getMessage(),
+                        exception);
+            }
+        }
+
+        private <T> T withQuietStdout(QuietSupplier<T> supplier) {
+            PrintStream originalOut = System.out;
+            try {
+                // jcardsim and loaded applets can emit diagnostics on stdout, which would corrupt
+                // the backend JSON control stream. Keep simulator chatter off stdout entirely.
+                System.setOut(QUIET_STDOUT);
+                return supplier.run();
+            } finally {
+                System.setOut(originalOut);
             }
         }
 
@@ -631,7 +640,8 @@ public final class SimulatorMain {
                 case "close_secure_messaging":
                     return closeSecureMessagingReply();
                 case "install":
-                    throw new IllegalArgumentException("CAP install is handled during simulator startup");
+                    throw new IllegalArgumentException(
+                            "managed Java simulator is class-backed and does not accept CAP install commands");
                 case "delete_package":
                     return deletePackageReply(requireStringField(line, "aid"));
                 case "list_applets":
@@ -833,40 +843,38 @@ public final class SimulatorMain {
         }
 
         String reset() {
-            ensureCad();
-            try {
-                cad.powerDown();
-                byte[] atr = cad.powerUp();
-                powerOn = true;
-                currentAtrHex = encodeHex(atr);
-                resetTrackedSession();
-                return currentAtrHex;
-            } catch (IOException | CadTransportException exception) {
-                throw new IllegalStateException("failed to reset simulator: " + exception.getMessage(), exception);
-            }
+            ensureSimulator();
+            withQuietStdout(
+                    () -> {
+                        simulator.reset();
+                        return null;
+                    });
+            powerOn = true;
+            currentAtrHex = profile.atrHex;
+            resetTrackedSession();
+            return currentAtrHex;
         }
 
         String power(String requested) {
-            ensureCad();
-            try {
-                String normalized = requested == null ? "" : requested.trim().toLowerCase(Locale.ROOT);
-                if ("on".equals(normalized)) {
-                    byte[] atr = cad.powerUp();
-                    powerOn = true;
-                    currentAtrHex = encodeHex(atr);
-                    resetTrackedSession();
-                    return currentAtrHex;
-                }
-                if (!"off".equals(normalized)) {
-                    throw new IllegalArgumentException("unsupported power action " + requested);
-                }
-                cad.powerDown();
-                powerOn = false;
-                clearTrackedSession();
-                return null;
-            } catch (IOException | CadTransportException exception) {
-                throw new IllegalStateException("failed to change simulator power state: " + exception.getMessage(), exception);
+            ensureSimulator();
+            String normalized = requested == null ? "" : requested.trim().toLowerCase(Locale.ROOT);
+            if ("on".equals(normalized)) {
+                withQuietStdout(
+                        () -> {
+                            simulator.reset();
+                            return null;
+                        });
+                powerOn = true;
+                currentAtrHex = profile.atrHex;
+                resetTrackedSession();
+                return currentAtrHex;
             }
+            if (!"off".equals(normalized)) {
+                throw new IllegalArgumentException("unsupported power action " + requested);
+            }
+            powerOn = false;
+            clearTrackedSession();
+            return null;
         }
 
         boolean deletePackage(String aid) {
@@ -874,186 +882,89 @@ public final class SimulatorMain {
         }
 
         void shutdown() {
-            if (socket != null) {
-                try {
-                    socket.close();
-                } catch (IOException ignored) {
-                }
-                socket = null;
-            }
-            cad = null;
-            if (process != null) {
-                process.destroy();
-                try {
-                    process.waitFor();
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                }
-                process = null;
-            }
+            simulator = null;
+            powerOn = false;
+            clearTrackedSession();
         }
 
-        private void installCap() throws IOException, CadTransportException {
-            List<byte[]> apdus = generateInstallScript(capPath, profile);
-            for (byte[] apdu : apdus) {
-                byte[] response = exchange(apdu);
-                if (statusWord(response) != 0x9000) {
+        private void installDeclaredApplets() {
+            for (AppletDescriptor applet : descriptor.applets) {
+                AID aid = parseAid(applet.aid);
+                try {
+                    withQuietStdout(
+                            () -> {
+                                simulator.installApplet(
+                                        aid, applet.className, new byte[0], (short) 0, (byte) 0);
+                                return null;
+                            });
+                } catch (RuntimeException exception) {
                     throw new IllegalStateException(
-                            "CAP install APDU failed with status " + String.format("%04X", statusWord(response)));
+                            "unable to install applet "
+                                    + applet.className
+                                    + " ("
+                                    + applet.aid
+                                    + "): "
+                                    + exception.getMessage(),
+                            exception);
                 }
             }
-        }
-
-        private List<byte[]> generateInstallScript(Path capPath, ProfileSpec profile) throws IOException {
-            Path scriptgenJar = sdkRoot().resolve(profile.sdkDir).resolve("lib").resolve("scriptgen.jar");
-            Process process =
-                    new ProcessBuilder(
-                                    "java",
-                                    "-cp",
-                                    scriptgenJar.toString(),
-                                    "com.sun.javacard.scriptgen.Main",
-                                    capPath.toString())
-                            .redirectErrorStream(true)
-                            .start();
-            List<byte[]> commands = new ArrayList<>();
-            try (BufferedReader reader =
-                    new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    String trimmed = line.trim();
-                    if (!trimmed.startsWith("0x")) {
-                        continue;
-                    }
-                    commands.add(parseScriptgenApdu(trimmed));
-                }
-            }
-            try {
-                int status = process.waitFor();
-                if (status != 0) {
-                    throw new IOException("scriptgen exited with status " + status);
-                }
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new IOException("scriptgen wait interrupted", exception);
-            }
-            if (commands.isEmpty()) {
-                throw new IOException("scriptgen did not emit any CAP install APDUs");
-            }
-            return commands;
-        }
-
-        private byte[] parseScriptgenApdu(String line) {
-            String normalized = line.replace(";", "").trim();
-            String[] parts = normalized.split("\\s+");
-            byte[] bytes = new byte[parts.length];
-            for (int index = 0; index < parts.length; index++) {
-                String part = parts[index];
-                if (!part.startsWith("0x") || part.length() != 4) {
-                    throw new IllegalArgumentException("invalid scriptgen APDU token: " + part);
-                }
-                bytes[index] = (byte) Integer.parseInt(part.substring(2), 16);
-            }
-            return bytes;
-        }
-
-        private Process launchProcess() throws IOException {
-            ProcessBuilder builder;
-            String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-            if (osName.contains("linux")) {
-                Path binary = sdkRoot().resolve(profile.sdkDir).resolve("bin").resolve("cref");
-                if (!Files.exists(binary)) {
-                    throw new IOException("official simulator binary not found: " + binary);
-                }
-                builder = new ProcessBuilder(binary.toString(), "-p", Integer.toString(port));
-            } else if (osName.contains("windows")) {
-                Path binary = sdkRoot().resolve(profile.sdkDir).resolve("bin").resolve("cref_tdual.exe");
-                if (!Files.exists(binary)) {
-                    throw new IOException("official simulator binary not found: " + binary);
-                }
-                builder = new ProcessBuilder(binary.toString(), "-p", Integer.toString(port));
-            } else if (osName.contains("mac")) {
-                String containerCommand = System.getenv("JCIM_SIMULATOR_CONTAINER_CMD");
-                if (containerCommand == null || containerCommand.isEmpty()) {
-                    throw new IOException(
-                            "macOS requires JCIM_SIMULATOR_CONTAINER_CMD to launch the official simulator");
-                }
-                builder = new ProcessBuilder("/bin/sh", "-lc", containerCommand);
-                builder.environment().put("JCIM_SIMULATOR_PORT", Integer.toString(port));
-                builder.environment().put("JCIM_SIMULATOR_PROFILE", profile.id);
-            } else {
-                throw new IOException("unsupported host OS for simulator backend: " + osName);
-            }
-            builder.redirectError(ProcessBuilder.Redirect.INHERIT);
-            return builder.start();
-        }
-
-        private CadClientInterface connectClient() throws IOException {
-            IOException lastIo = null;
-            for (int attempt = 0; attempt < 50; attempt++) {
-                if (process != null && !process.isAlive()) {
-                    throw new IOException("official simulator process exited during startup");
-                }
-                try {
-                    Socket candidate = new Socket();
-                    candidate.connect(new InetSocketAddress("127.0.0.1", port), 250);
-                    candidate.setTcpNoDelay(true);
-                    CadClientInterface client =
-                            CadDevice.getCadClientInstance(
-                                    CadDevice.PROTOCOL_T1, candidate.getInputStream(), candidate.getOutputStream());
-                    this.socket = candidate;
-                    return client;
-                } catch (IOException exception) {
-                    lastIo = exception;
-                    sleepQuietly(100);
-                }
-            }
-            throw new IOException("unable to connect to official simulator socket", lastIo);
         }
 
         private byte[] exchange(byte[] command) {
-            ensureCad();
+            ensureSimulator();
             if (!powerOn) {
                 throw new IllegalStateException("simulator card is powered off");
             }
-            try {
-                Apdu apdu = toApdu(command);
-                cad.exchangeApdu(apdu);
-                return apdu.getResponseApduBytes();
-            } catch (IOException | CadTransportException exception) {
-                throw new IllegalStateException("APDU exchange failed: " + exception.getMessage(), exception);
-            }
-        }
-
-        private Apdu toApdu(byte[] commandBytes) {
-            if (commandBytes.length < 4) {
+            if (command.length < 4) {
                 throw new IllegalArgumentException("APDU is too short");
             }
-            Apdu apdu = new Apdu();
-            apdu.command[Apdu.CLA] = commandBytes[0];
-            apdu.command[Apdu.INS] = commandBytes[1];
-            apdu.command[Apdu.P1] = commandBytes[2];
-            apdu.command[Apdu.P2] = commandBytes[3];
-            if (commandBytes.length == 4) {
-                return apdu;
+
+            int channel = logicalChannelFromCla(command[0]);
+            if (channel > maxLogicalChannelNumber()) {
+                return statusWordResponse(0x6881);
             }
-            int p3 = unsigned(commandBytes[4]);
-            apdu.command[Apdu.P3] = commandBytes[4];
-            if (commandBytes.length == 5) {
-                apdu.setLe(p3);
-                return apdu;
+            if (!openChannels.containsKey(channel)) {
+                return statusWordResponse(0x6881);
             }
-            if (commandBytes.length == 5 + p3) {
-                apdu.setDataIn(slice(commandBytes, 5, p3));
-                apdu.setLc(p3);
-                return apdu;
+
+            int ins = unsigned(command[1]);
+            if (ins == 0x70) {
+                return handleManageChannelApdu(command);
             }
-            if (commandBytes.length == 6 + p3) {
-                apdu.setDataIn(slice(commandBytes, 5, p3));
-                apdu.setLc(p3);
-                apdu.setLe(unsigned(commandBytes[commandBytes.length - 1]));
-                return apdu;
+
+            if (ins != 0xA4) {
+                syncRuntimeSelection(channel);
             }
-            throw new IllegalArgumentException("unsupported APDU length " + commandBytes.length);
+            byte[] normalized = normalizeChannelCla(command);
+            return withQuietStdout(() -> simulator.transmitCommand(normalized));
+        }
+
+        private byte[] handleManageChannelApdu(byte[] command) {
+            int p1 = unsigned(command[2]);
+            int p2 = unsigned(command[3]);
+            if (p1 == 0x00) {
+                int requestedChannel = p2 == 0 ? allocateLogicalChannel() : p2;
+                if (requestedChannel <= 0 || requestedChannel > maxLogicalChannelNumber()) {
+                    return statusWordResponse(0x6881);
+                }
+                if (openChannels.containsKey(requestedChannel)) {
+                    return statusWordResponse(0x6881);
+                }
+                openChannels.put(requestedChannel, new ChannelState(requestedChannel));
+                return new byte[] {(byte) requestedChannel, (byte) 0x90, 0x00};
+            }
+            if (p1 == 0x80) {
+                if (p2 == 0 || p2 > maxLogicalChannelNumber()) {
+                    return statusWordResponse(0x6A86);
+                }
+                if (!openChannels.containsKey(p2)) {
+                    return statusWordResponse(0x6881);
+                }
+                openChannels.remove(p2);
+                syncSelectedAid();
+                return statusWordResponse(0x9000);
+            }
+            return statusWordResponse(0x6A86);
         }
 
         private byte[] manageChannelCommand(boolean open, Integer channelNumber) {
@@ -1064,6 +975,49 @@ public final class SimulatorMain {
                 throw new IllegalArgumentException("manage_channel close requires channel_number");
             }
             return new byte[] {0x00, 0x70, (byte) 0x80, (byte) (int) channelNumber};
+        }
+
+        private int allocateLogicalChannel() {
+            for (int channel = 1; channel <= maxLogicalChannelNumber(); channel++) {
+                if (!openChannels.containsKey(channel)) {
+                    return channel;
+                }
+            }
+            return -1;
+        }
+
+        private void syncRuntimeSelection(int channel) {
+            String channelAid = selectedAidForChannel(channel);
+            if (channelAid == null || Objects.equals(runtimeSelectedAid, channelAid)) {
+                return;
+            }
+            byte[] response = withQuietStdout(() -> simulator.transmitCommand(AIDUtil.select(channelAid)));
+            int status = statusWord(response);
+            if (status != 0x9000) {
+                throw new IllegalStateException(
+                        "unable to restore channel "
+                                + channel
+                                + " selection "
+                                + channelAid
+                                + " ("
+                                + String.format(Locale.ROOT, "%04X", status)
+                                + ")");
+            }
+            runtimeSelectedAid = channelAid;
+        }
+
+        private byte[] normalizeChannelCla(byte[] command) {
+            byte[] normalized = command.clone();
+            normalized[0] = stripLogicalChannel(command[0]);
+            return normalized;
+        }
+
+        private byte stripLogicalChannel(byte cla) {
+            int value = unsigned(cla);
+            if ((value & 0x40) != 0) {
+                return (byte) (value & 0xB0);
+            }
+            return (byte) (value & 0xFC);
         }
 
         private void resetTrackedSession() {
@@ -1077,6 +1031,7 @@ public final class SimulatorMain {
             openChannels.clear();
             secureMessaging.clear();
             selectedAid = null;
+            runtimeSelectedAid = null;
             lastStatusWord = null;
         }
 
@@ -1090,7 +1045,9 @@ public final class SimulatorMain {
                 if (ins == 0xA4 && apdu.length >= 5) {
                     int lc = unsigned(apdu[4]);
                     if (p1 == 0x04 && apdu.length >= 5 + lc) {
-                        ensureChannel(channel).selectedAid = encodeHex(slice(apdu, 5, lc));
+                        String aid = encodeHex(slice(apdu, 5, lc));
+                        ensureChannel(channel).selectedAid = aid;
+                        runtimeSelectedAid = aid;
                         syncSelectedAid();
                     }
                 } else if (ins == 0x70) {
@@ -1122,6 +1079,11 @@ public final class SimulatorMain {
             return state;
         }
 
+        private String selectedAidForChannel(int channelNumber) {
+            ChannelState state = openChannels.get(channelNumber);
+            return state == null ? null : state.selectedAid;
+        }
+
         private void syncSelectedAid() {
             ChannelState basic = openChannels.get(0);
             selectedAid = basic == null ? null : basic.selectedAid;
@@ -1141,11 +1103,14 @@ public final class SimulatorMain {
             return value & 0x03;
         }
 
+        private int maxLogicalChannelNumber() {
+            return 3;
+        }
+
         private String backendCapabilitiesJson() {
             return object(
                     field("protocol_version", quote("1.0")),
                     field("iso_capabilities", isoCapabilitiesJson()),
-                    field("accepts_cap", "true"),
                     field("supports_typed_apdu", "true"),
                     field("supports_raw_apdu", "true"),
                     field("supports_apdu", "true"),
@@ -1184,8 +1149,10 @@ public final class SimulatorMain {
         }
 
         private String sessionStateJson() {
+            List<ChannelState> channelStates = new ArrayList<>(openChannels.values());
+            channelStates.sort(Comparator.comparingInt(state -> state.channelNumber));
             List<String> channels = new ArrayList<>();
-            for (ChannelState state : openChannels.values()) {
+            for (ChannelState state : channelStates) {
                 channels.add(
                         object(
                                 field("channel_number", Integer.toString(state.channelNumber)),
@@ -1264,41 +1231,32 @@ public final class SimulatorMain {
             return profile.apduBufferLimit > 261;
         }
 
-        private void ensureCad() {
-            if (cad == null) {
-                throw new IllegalStateException("official simulator transport is unavailable");
+        private void ensureSimulator() {
+            if (simulator == null) {
+                throw new IllegalStateException("managed Java simulator is unavailable");
             }
         }
 
         private String healthMessage() {
-            if (!installed) {
-                return "official simulator ready without an installed CAP";
+            StringBuilder builder = new StringBuilder();
+            builder.append("managed Java simulator ready with package ").append(descriptor.packageName);
+            if (capPathLabel != null && !capPathLabel.isEmpty()) {
+                builder.append(" (CAP artifact ").append(capPathLabel).append(')');
             }
-            return "official simulator ready with CAP " + descriptor.packageName;
+            return builder.toString();
         }
     }
 
-    private static Path sdkRoot() {
-        String bundleDir = System.getenv("JCIM_BUNDLE_DIR");
-        if (bundleDir == null || bundleDir.isEmpty()) {
-            throw new IllegalStateException("JCIM_BUNDLE_DIR is not set");
-        }
-        Path repoRoot = Path.of(bundleDir).getParent().getParent();
-        return repoRoot.resolve("third_party").resolve("javacard_sdks");
-    }
-
-    private static int chooseFreePort() throws IOException {
-        try (ServerSocket server = new ServerSocket(0)) {
-            return server.getLocalPort();
-        }
-    }
-
-    private static void sleepQuietly(long millis) {
+    private static AID parseAid(String aidHex) {
         try {
-            Thread.sleep(millis);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
+            return AIDUtil.create(aidHex);
+        } catch (RuntimeException exception) {
+            throw new IllegalArgumentException("invalid AID `" + aidHex + "`", exception);
         }
+    }
+
+    private static byte[] statusWordResponse(int statusWord) {
+        return new byte[] {(byte) ((statusWord >> 8) & 0xFF), (byte) (statusWord & 0xFF)};
     }
 
     private static byte[] slice(byte[] source, int offset, int length) {
