@@ -1,6 +1,6 @@
 # Satochip Example
 
-This example is a source-backed JCIM 0.2 simulator demo built from vendored Satochip Java sources.
+This example is a source-backed JCIM 0.3 simulator demo built from vendored Satochip Java sources.
 
 ## What it demonstrates
 
@@ -79,5 +79,7 @@ Note for managed simulator users:
 
 - No extra simulator setup is required on maintained macOS and Linux hosts. JCIM uses the bundled
   managed-Java simulator path and the vendored Temurin runtime automatically.
+- The documented flow uses the maintained simulator lifecycle plus typed ISO/APDU commands. Expert
+  simulator GP commands are intentionally omitted from this example path.
 - The commands above assume exactly one running simulation. If you have more than one, rerun them
   with `--simulation` and the id from `cargo run -p jcim-cli -- sim status`.

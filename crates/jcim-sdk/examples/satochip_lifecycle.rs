@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use jcim_core::apdu::CommandApdu;
-use jcim_sdk::{CardInstallSource, JcimClient, ProjectRef, ReaderRef, SimulationInput};
+use jcim_sdk::{CardInstallSource, JcimClient, ProjectRef, ReaderRef};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,9 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let build = client.build_project(&project).await?;
     println!("Built {} artifact(s).", build.artifacts.len());
 
-    let simulation = client
-        .start_simulation(SimulationInput::Project(project.clone()))
-        .await?;
+    let simulation = client.start_simulation(project.clone()).await?;
     println!("Started simulation {}", simulation.simulation_id);
 
     let select = CommandApdu::parse(&hex::decode("00A40400095361746F4368697000")?)?;

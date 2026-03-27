@@ -1,6 +1,6 @@
 # API Reference
 
-JCIM 0.2 exposes a local gRPC API over a Unix-domain socket.
+JCIM 0.3 exposes its sole maintained local gRPC API over a Unix-domain socket.
 
 The canonical Rust consumer of this contract is:
 
@@ -71,12 +71,21 @@ underlying gRPC contract.
 
 The protobuf source lives at:
 
-- [`crates/jcim-api/proto/jcim/v0_2/service.proto`](../crates/jcim-api/proto/jcim/v0_2/service.proto)
+- [`crates/jcim-api/proto/jcim/v0_3/service.proto`](../crates/jcim-api/proto/jcim/v0_3/service.proto)
+- Migration notes: [`migration-0.3.md`](migration-0.3.md)
 
 ## Notable request and response shapes
 
 - `StartSimulationRequest` takes a project selector.
 - Project-backed startup is the maintained simulator input.
+- `SimulationInfo` is project-backed and reports:
+  - simulation id
+  - owning project id and path
+  - lifecycle status
+  - reader and health details
+  - ATR, protocol, ISO capability, and session-state summaries
+  - installed package metadata
+  - recent retained events
 - `GetSimulationSessionStateResponse` and `GetCardSessionStateResponse` return typed ISO/IEC 7816
   session state, including channel, selection, and secure-messaging summaries.
 - `TransmitRawApdu*` RPCs preserve the raw escape hatch, but the maintained path is `TransmitApdu`
@@ -85,6 +94,9 @@ The protobuf source lives at:
   simulation and real-card targets.
 - `OpenGpSecureChannel*` and `CloseGpSecureChannel*` expose the automated typed GlobalPlatform
   auth flow for SCP02 and SCP03.
+- Simulator-side GP RPCs remain available for advanced backends and diagnostics, but the
+  maintained simulator lifecycle is still project-backed start plus simulator lifecycle, ISO, log,
+  and APDU operations.
 - `InstallCapRequest` also uses a `oneof` input:
   - `project`
   - `cap_path`
@@ -102,7 +114,5 @@ The protobuf source lives at:
   plus JCIM-tracked effects of commands JCIM itself sent.
 - The unified Rust `CardConnection` API lives above these service methods; it does not replace or
   alter the `CardService` and `SimulatorService` RPCs.
-- New simulations report `managed_java` as the maintained engine mode. Older `native` and
-  `container` values remain decode-compatible for compatibility.
 - `GetServiceStatusResponse` now includes both the socket path and the startup-captured daemon
   binary identity, which the SDK uses to avoid attaching to stale `jcimd` instances after rebuilds.

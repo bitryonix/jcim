@@ -1,4 +1,4 @@
-//! Binary entry point for the JCIM 0.2 local service.
+//! Binary entry point for the JCIM 0.3 local service.
 #![allow(clippy::missing_docs_in_private_items)]
 #![forbid(unsafe_code)]
 
@@ -11,7 +11,7 @@ use jcim_app::JcimApp;
 
 #[derive(Debug, Parser)]
 #[command(name = "jcimd")]
-#[command(about = "JCIM 0.2 local gRPC service")]
+#[command(about = "JCIM 0.3 local gRPC service")]
 struct Args {
     /// Override the managed Unix-domain socket path used by the local service.
     #[arg(long)]
@@ -29,6 +29,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let socket_path = args
         .socket_path
         .unwrap_or_else(|| app.managed_paths().service_socket_path.clone());
-    jcimd::serve_local_service(app, &socket_path).await?;
+    jcimd::serve_local_service_until_shutdown(app, &socket_path, shutdown_signal()?).await?;
     Ok(())
+}
+
+fn shutdown_signal()
+-> Result<impl std::future::Future<Output = ()> + Send + 'static, Box<dyn std::error::Error>> {
+    use tokio::signal::unix::{SignalKind, signal};
+
+    let mut interrupt = signal(SignalKind::interrupt())?;
+    let mut terminate = signal(SignalKind::terminate())?;
+    Ok(async move {
+        tokio::select! {
+            _ = interrupt.recv() => {}
+            _ = terminate.recv() => {}
+        }
+    })
 }

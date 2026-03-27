@@ -2,8 +2,8 @@
 
 ## Simulator-first product
 
-- JCIM 0.2 is centered on one primary capability: APDU-driven Java Card simulation from JCIM
-  project builds.
+- JCIM 0.3 is centered on one primary capability: APDU-driven Java Card simulation from JCIM
+  project builds over one local service-first platform.
 - Source projects are supported by building them once and starting a managed class-backed
   simulation from the emitted classes, runtime classpath, and simulator metadata.
 - Physical-card utilities remain in scope, but they are explicitly secondary.
@@ -41,7 +41,7 @@ Reason:
 
 ## Public API contract
 
-- `jcim-api` protobuf is the public local contract.
+- `jcim-api` package `jcim.v0_3` is the sole maintained local contract.
 - The service exposes task-oriented services:
   - workspace
   - project
@@ -54,6 +54,8 @@ Reason:
 - the simulator contract should be explicit, testable, and GUI-ready
 - project-backed startup keeps the maintained simulator contract narrow and explicit
 - typed card responses should remove the need for Rust or CLI callers to parse helper text
+- older `jcim.v0_2` shapes are replaced by a migration note rather than by parallel long-lived
+  shims
 
 ## CLI redesign
 
@@ -74,8 +76,11 @@ Reason:
 - The maintained simulator backend is a bundled managed-Java `jcardsim` engine.
 - It loads applets from project build outputs instead of installing CAP files into an external
   simulator process.
-- `native` and `container` engine modes remain decode-compatible for one release, but
-  `managed_java` is the maintained engine mode for new simulations.
+- `project` is the maintained simulation source kind for new starts.
+- `managed_java` is the maintained engine mode for new simulations.
+- CAP-backed simulator startup is no longer part of the maintained start contract.
+- `jcim sim gp ...` remains available as an expert simulator surface, but it is not the default
+  simulator lifecycle path and is not part of the stable CLI automation guarantee yet.
 
 Reason:
 - zero-setup macOS and Linux behavior matters more than preserving the old official-simulator path
@@ -86,7 +91,8 @@ Reason:
 ## Configuration model
 
 - `jcim.toml` is the project-facing manifest.
-- Machine-local state lives under the managed JCIM root in one user config file and one project registry file.
+- Machine-local config, durable state, runtime files, logs, cache, and extracted runtime assets are
+  separated so daemon sockets and crash leftovers do not share one undifferentiated root.
 - The manifest uses:
   - `[project]`
   - `[source]`
@@ -100,8 +106,10 @@ Reason:
 
 ## Compatibility posture
 
-- JCIM 0.2 is a deliberate breaking redesign.
-- Old runtime modes, old command trees, and old manifest sections are not preserved.
+- JCIM 0.3 is the maintained baseline.
+- `jcim.v0_2` and `jcim-cli.v1` are not preserved in parallel.
+- Breaking changes already landed in the local-service and JSON automation surfaces are documented
+  through migration notes and ADRs rather than through long-lived compatibility shims.
 
 Reason:
 - carrying the old surface forward would keep the architecture anchored to the wrong center of gravity

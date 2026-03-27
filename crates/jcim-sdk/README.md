@@ -1,6 +1,6 @@
 # jcim-sdk
 
-`jcim-sdk` is the canonical Rust lifecycle API for JCIM 0.2.
+`jcim-sdk` is the canonical Rust lifecycle API for the JCIM local service.
 
 It is service-first:
 
@@ -18,14 +18,14 @@ managed simulator path.
 Typical flow:
 
 ```rust
-use jcim_sdk::{CardConnectionTarget, CommandApdu, JcimClient, ProjectRef, SimulationInput};
+use jcim_sdk::{CardConnectionTarget, CommandApdu, JcimClient, ProjectRef};
 
 # async fn demo() -> Result<(), Box<dyn std::error::Error>> {
 let client = JcimClient::connect_or_start().await?;
 let connection = client
-    .open_card_connection(CardConnectionTarget::StartSimulation(
-        SimulationInput::Project(ProjectRef::from_path("examples/satochip/workdir")),
-    ))
+    .open_card_connection(CardConnectionTarget::StartSimulation(ProjectRef::from_path(
+        "examples/satochip/workdir",
+    )))
     .await?;
 let select = CommandApdu::parse(&[
     0x00, 0xA4, 0x04, 0x00, 0x09, 0x53, 0x61, 0x74, 0x6F, 0x43, 0x68, 0x69, 0x70, 0x00,
@@ -81,7 +81,7 @@ Important:
 
 - APDUs are the message unit of the unified connection API.
 - `CardConnection::close()` must be called explicitly if it started and owns a simulation.
-- `SimulationInput::Project(...)` is the maintained simulator input.
+- `ProjectRef` is the maintained simulator input surface.
 - Advanced ISO/GP workflows such as channel management, secure messaging, GP auth, install, and admin helpers remain on `JcimClient`.
 
 Examples:

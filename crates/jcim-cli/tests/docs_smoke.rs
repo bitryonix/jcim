@@ -2,8 +2,12 @@
 
 #![forbid(unsafe_code)]
 
+#[path = "../../../tests/support/socket.rs"]
+mod socket_support;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn cli_bin() -> &'static str {
@@ -12,6 +16,12 @@ fn cli_bin() -> &'static str {
 
 #[test]
 fn quickstart_commands_from_docs_run_from_repo_root() {
+    if !socket_support::unix_domain_sockets_supported(
+        "quickstart_commands_from_docs_run_from_repo_root",
+    ) {
+        return;
+    }
+
     let root = temp_root("docs-quickstart");
     let demo = root.join("demo");
     let demo_arg = demo_string(&demo);
@@ -35,7 +45,8 @@ fn quickstart_commands_from_docs_run_from_repo_root() {
     assert!(started.contains("Status: running"));
 
     let status = run_cli(&root, &["sim", "status"]);
-    assert!(status.contains("Source: project"));
+    assert!(status.contains("Project ID:"));
+    assert!(status.contains("Project Path:"));
 
     let select = run_cli(&root, &["sim", "iso", "select", "--aid", "F00000000101"]);
     assert_eq!(select.trim(), "9000");
@@ -62,6 +73,12 @@ fn quickstart_commands_from_docs_run_from_repo_root() {
 
 #[test]
 fn satochip_cli_commands_from_docs_run_from_repo_root() {
+    if !socket_support::unix_domain_sockets_supported(
+        "satochip_cli_commands_from_docs_run_from_repo_root",
+    ) {
+        return;
+    }
+
     let root = temp_root("docs-satochip");
     let project = repo_root().join("examples/satochip/workdir");
     let project_arg = demo_string(&project);
@@ -73,7 +90,7 @@ fn satochip_cli_commands_from_docs_run_from_repo_root() {
     assert!(started.contains("Status: running"));
 
     let status = run_cli(&root, &["sim", "status"]);
-    assert!(status.contains("Source: project"));
+    assert!(status.contains("Project ID:"));
     assert!(status.contains("Project Path:"));
 
     let select = run_cli(
@@ -131,7 +148,12 @@ fn run_cli(home_root: &Path, args: &[&str]) -> String {
         .args(args)
         .current_dir(repo_root())
         .env("HOME", home_root)
-        .env("XDG_DATA_HOME", home_root.join("xdg"))
+        .env("XDG_CONFIG_HOME", home_root.join("xdg-config"))
+        .env("XDG_DATA_HOME", home_root.join("xdg-data"))
+        .env("XDG_STATE_HOME", home_root.join("xdg-state"))
+        .env("XDG_CACHE_HOME", home_root.join("xdg-cache"))
+        .env("XDG_RUNTIME_DIR", home_root.join("xdg-runtime"))
+        .env("JCIM_SERVICE_BIN", fresh_jcimd_binary())
         .env("NO_COLOR", "1")
         .env_remove("JCIM_SIMULATOR_CONTAINER_CMD")
         .output()
@@ -153,6 +175,21 @@ fn repo_root() -> PathBuf {
         .join("../..")
         .canonicalize()
         .expect("repo root")
+}
+
+fn fresh_jcimd_binary() -> PathBuf {
+    static JCIMD_BIN: OnceLock<PathBuf> = OnceLock::new();
+    JCIMD_BIN
+        .get_or_init(|| {
+            let status = Command::new("cargo")
+                .args(["build", "-p", "jcimd", "--bin", "jcimd"])
+                .current_dir(repo_root())
+                .status()
+                .expect("build jcimd binary for CLI doc smoke tests");
+            assert!(status.success(), "building jcimd binary failed");
+            repo_root().join("target/debug/jcimd")
+        })
+        .clone()
 }
 
 fn demo_string(path: &Path) -> String {

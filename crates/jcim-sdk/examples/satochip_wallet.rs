@@ -12,9 +12,7 @@ mod satochip_support;
 
 use std::path::PathBuf;
 
-use jcim_sdk::{
-    CardConnectionTarget, CardInstallSource, JcimClient, ProjectRef, ReaderRef, SimulationInput,
-};
+use jcim_sdk::{CardConnectionTarget, CardInstallSource, JcimClient, ProjectRef, ReaderRef};
 
 struct ExampleArgs {
     project_path: PathBuf,
@@ -50,9 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .await?
     } else {
         let connection = client
-            .open_card_connection(CardConnectionTarget::StartSimulation(
-                SimulationInput::Project(project.clone()),
-            ))
+            .open_card_connection(CardConnectionTarget::StartSimulation(project.clone()))
             .await?;
         println!(
             "Started virtual Satochip target: {:?}",

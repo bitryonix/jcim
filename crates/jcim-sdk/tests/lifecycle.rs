@@ -4,20 +4,33 @@
 
 #[path = "../examples/support/satochip.rs"]
 mod satochip_support;
+#[path = "../../../tests/support/socket.rs"]
+mod socket_support;
 
-use std::path::{Path, PathBuf};
+use std::fs::File;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use jcim_app::{JcimApp, MockPhysicalCardAdapter};
-use jcim_config::project::ManagedPaths;
+use jcim_config::project::{ManagedPaths, ServiceRuntimeRecord};
 use jcim_sdk::{
     Aid, CardConnectionKind, CardConnectionLocator, CardConnectionTarget, CardInstallSource,
-    JcimClient, ProjectRef, SimulationInput, globalplatform, iso7816,
+    JcimClient, ProjectRef, globalplatform, iso7816,
 };
-use tokio::time::{Duration, sleep};
 
 #[tokio::test]
 async fn sdk_builds_and_installs_source_project_with_mock_card() {
+    let _guard = lifecycle_lock().lock().await;
+    if !socket_support::unix_domain_sockets_supported(
+        "sdk_builds_and_installs_source_project_with_mock_card",
+    ) {
+        return;
+    }
+
     let root = temp_root("sdk-mock-install");
     let managed_paths = ManagedPaths::for_root(root.clone());
     let socket_path = managed_paths.service_socket_path.clone();
@@ -27,8 +40,10 @@ async fn sdk_builds_and_installs_source_project_with_mock_card() {
     )
     .expect("load app");
 
-    let server = tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
-    wait_for_socket(&managed_paths.service_socket_path).await;
+    let mut server =
+        tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
+    socket_support::wait_for_socket_or_server_exit(&managed_paths.service_socket_path, &mut server)
+        .await;
 
     let client = JcimClient::connect_with_paths(managed_paths.clone())
         .await
@@ -210,6 +225,11 @@ async fn sdk_builds_and_installs_source_project_with_mock_card() {
 
 #[tokio::test]
 async fn sdk_installs_direct_cap_with_mock_card() {
+    let _guard = lifecycle_lock().lock().await;
+    if !socket_support::unix_domain_sockets_supported("sdk_installs_direct_cap_with_mock_card") {
+        return;
+    }
+
     let root = temp_root("sdk-mock-direct-cap");
     let managed_paths = ManagedPaths::for_root(root.clone());
     let socket_path = managed_paths.service_socket_path.clone();
@@ -219,8 +239,10 @@ async fn sdk_installs_direct_cap_with_mock_card() {
     )
     .expect("load app");
 
-    let server = tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
-    wait_for_socket(&managed_paths.service_socket_path).await;
+    let mut server =
+        tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
+    socket_support::wait_for_socket_or_server_exit(&managed_paths.service_socket_path, &mut server)
+        .await;
 
     let client = JcimClient::connect_with_paths(managed_paths.clone())
         .await
@@ -242,22 +264,29 @@ async fn sdk_installs_direct_cap_with_mock_card() {
 
 #[tokio::test]
 async fn sdk_owned_project_simulation_connection_round_trip() {
+    let _guard = lifecycle_lock().lock().await;
+    if !socket_support::unix_domain_sockets_supported(
+        "sdk_owned_project_simulation_connection_round_trip",
+    ) {
+        return;
+    }
+
     let root = temp_root("sdk-project-sim");
     let managed_paths = ManagedPaths::for_root(root.clone());
     let socket_path = managed_paths.service_socket_path.clone();
     let app = JcimApp::load_with_paths(managed_paths.clone()).expect("load app");
 
-    let server = tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
-    wait_for_socket(&managed_paths.service_socket_path).await;
+    let mut server =
+        tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
+    socket_support::wait_for_socket_or_server_exit(&managed_paths.service_socket_path, &mut server)
+        .await;
 
     let client = JcimClient::connect_with_paths(managed_paths.clone())
         .await
         .expect("connect");
     let connection = client
         .open_card_connection(CardConnectionTarget::StartSimulation(
-            SimulationInput::Project(ProjectRef::from_path(
-                satochip_support::satochip_project_root(),
-            )),
+            ProjectRef::from_path(satochip_support::satochip_project_root()),
         ))
         .await
         .expect("open simulation connection");
@@ -292,21 +321,30 @@ async fn sdk_owned_project_simulation_connection_round_trip() {
 
 #[tokio::test]
 async fn sdk_attach_existing_simulation_connection_leaves_simulation_running() {
+    let _guard = lifecycle_lock().lock().await;
+    if !socket_support::unix_domain_sockets_supported(
+        "sdk_attach_existing_simulation_connection_leaves_simulation_running",
+    ) {
+        return;
+    }
+
     let root = temp_root("sdk-attach-sim");
     let managed_paths = ManagedPaths::for_root(root.clone());
     let socket_path = managed_paths.service_socket_path.clone();
     let app = JcimApp::load_with_paths(managed_paths.clone()).expect("load app");
 
-    let server = tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
-    wait_for_socket(&managed_paths.service_socket_path).await;
+    let mut server =
+        tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
+    socket_support::wait_for_socket_or_server_exit(&managed_paths.service_socket_path, &mut server)
+        .await;
 
     let client = JcimClient::connect_with_paths(managed_paths.clone())
         .await
         .expect("connect");
     let simulation = client
-        .start_simulation(SimulationInput::Project(ProjectRef::from_path(
+        .start_simulation(ProjectRef::from_path(
             satochip_support::satochip_project_root(),
-        )))
+        ))
         .await
         .expect("start simulation");
     let connection = client
@@ -353,22 +391,29 @@ async fn sdk_attach_existing_simulation_connection_leaves_simulation_running() {
 
 #[tokio::test]
 async fn sdk_runs_the_satochip_wallet_demo_on_a_project_backed_simulation() {
+    let _guard = lifecycle_lock().lock().await;
+    if !socket_support::unix_domain_sockets_supported(
+        "sdk_runs_the_satochip_wallet_demo_on_a_project_backed_simulation",
+    ) {
+        return;
+    }
+
     let root = temp_root("sdk-satochip-wallet");
     let managed_paths = ManagedPaths::for_root(root.clone());
     let socket_path = managed_paths.service_socket_path.clone();
     let app = JcimApp::load_with_paths(managed_paths.clone()).expect("load app");
 
-    let server = tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
-    wait_for_socket(&managed_paths.service_socket_path).await;
+    let mut server =
+        tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
+    socket_support::wait_for_socket_or_server_exit(&managed_paths.service_socket_path, &mut server)
+        .await;
 
     let client = JcimClient::connect_with_paths(managed_paths.clone())
         .await
         .expect("connect");
     let connection = client
         .open_card_connection(CardConnectionTarget::StartSimulation(
-            SimulationInput::Project(ProjectRef::from_path(
-                satochip_support::satochip_project_root(),
-            )),
+            ProjectRef::from_path(satochip_support::satochip_project_root()),
         ))
         .await
         .expect("open simulation connection");
@@ -410,20 +455,333 @@ async fn sdk_runs_the_satochip_wallet_demo_on_a_project_backed_simulation() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-async fn wait_for_socket(socket_path: &Path) {
-    for _ in 0..40 {
-        if socket_path.exists() {
-            return;
-        }
-        sleep(Duration::from_millis(25)).await;
-    }
-    panic!("socket never appeared at {}", socket_path.display());
-}
-
 fn temp_root(label: &str) -> PathBuf {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("time")
         .as_nanos();
     PathBuf::from("/tmp").join(format!("jcim-sdk-{label}-{unique}"))
+}
+
+#[tokio::test]
+async fn sdk_connect_or_start_replaces_mismatched_daemon_binary() {
+    let _guard = lifecycle_lock().lock().await;
+    if !socket_support::unix_domain_sockets_supported(
+        "sdk_connect_or_start_replaces_mismatched_daemon_binary",
+    ) {
+        return;
+    }
+
+    let root = temp_root("sdk-binary-mismatch");
+    let managed_paths = ManagedPaths::for_root(root.join("managed"));
+    managed_paths.prepare_layout().expect("prepare layout");
+
+    let copied_binary = copy_jcimd_binary(root.join("jcimd-copied"));
+    let stderr_log_path = root.join("jcimd-copied.stderr.log");
+    let stderr_log = File::create(&stderr_log_path).expect("create copied stderr log");
+    let mut child = Command::new(&copied_binary)
+        .current_dir(repo_root())
+        .arg("--socket-path")
+        .arg(&managed_paths.service_socket_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::from(stderr_log))
+        .spawn()
+        .expect("spawn copied jcimd");
+    socket_support::wait_for_socket_or_child_exit(
+        &managed_paths.service_socket_path,
+        &mut child,
+        &stderr_log_path,
+    );
+
+    let client = JcimClient::connect_or_start_with_paths(managed_paths.clone())
+        .await
+        .expect("restart through canonical jcimd");
+    let status = client.service_status().await.expect("service status");
+    assert!(status.running);
+    assert_eq!(status.service_binary_path, canonical_jcimd_binary());
+    wait_for_child_exit(&mut child).await;
+
+    stop_managed_daemon(&managed_paths).await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn sdk_connect_or_start_survives_repeated_service_restarts() {
+    let _guard = lifecycle_lock().lock().await;
+    if !socket_support::unix_domain_sockets_supported(
+        "sdk_connect_or_start_survives_repeated_service_restarts",
+    ) {
+        return;
+    }
+
+    let root = temp_root("sdk-restart-loops");
+    let managed_paths = ManagedPaths::for_root(root.clone());
+
+    for cycle in 0..3 {
+        let client = JcimClient::connect_or_start_with_paths(managed_paths.clone())
+            .await
+            .unwrap_or_else(|error| panic!("connect_or_start cycle {cycle} failed: {error}"));
+        let status = client.service_status().await.expect("service status");
+        assert!(
+            status.running,
+            "cycle {cycle} should report a running daemon"
+        );
+        assert!(managed_paths.runtime_metadata_path.exists());
+
+        stop_managed_daemon(&managed_paths).await;
+        wait_for_path_absent(&managed_paths.service_socket_path).await;
+        wait_for_path_absent(&managed_paths.runtime_metadata_path).await;
+    }
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn sdk_connect_or_start_fails_closed_when_a_regular_file_blocks_the_socket() {
+    let _guard = lifecycle_lock().lock().await;
+    let root = temp_root("sdk-regular-file");
+    let managed_paths = ManagedPaths::for_root(root.clone());
+    std::fs::create_dir_all(&managed_paths.runtime_dir).expect("create runtime dir");
+    std::fs::write(&managed_paths.service_socket_path, "not a socket").expect("write blocker");
+
+    let error = match JcimClient::connect_or_start_with_paths(managed_paths.clone()).await {
+        Ok(_) => panic!("non-socket path should block bootstrap"),
+        Err(error) => error,
+    };
+    let message = error.to_string();
+    assert!(
+        message.contains("refusing to remove non-socket"),
+        "unexpected bootstrap error: {message}"
+    );
+    assert!(!managed_paths.runtime_metadata_path.exists());
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn sdk_two_clients_can_drive_one_simulation_concurrently() {
+    let _guard = lifecycle_lock().lock().await;
+    if !socket_support::unix_domain_sockets_supported(
+        "sdk_two_clients_can_drive_one_simulation_concurrently",
+    ) {
+        return;
+    }
+
+    let root = temp_root("sdk-two-clients");
+    let managed_paths = ManagedPaths::for_root(root.clone());
+    let client_a = JcimClient::connect_or_start_with_paths(managed_paths.clone())
+        .await
+        .expect("connect client A");
+    let client_b = JcimClient::connect_with_paths(managed_paths.clone())
+        .await
+        .expect("connect client B");
+
+    let simulation = client_a
+        .start_simulation(ProjectRef::from_path(
+            satochip_support::satochip_project_root(),
+        ))
+        .await
+        .expect("start simulation");
+    let simulation_ref = simulation.simulation_ref();
+    let select_apdu = hex::decode("00A40400095361746F4368697000").expect("decode select APDU");
+    let applet_aid = Aid::from_hex("5361746F4368697000").expect("parse applet aid");
+    let client_a_select = client_a.clone();
+    let client_b_raw = client_b.clone();
+    let client_a_status = client_a.clone();
+    let client_b_session = client_b.clone();
+    let client_a_events = client_a.clone();
+    let client_a_service = client_a.clone();
+    let client_b_service = client_b.clone();
+
+    let (
+        select_result,
+        raw_result,
+        status_result,
+        session_result,
+        events_result,
+        service_status_a,
+        service_status_b,
+    ) = tokio::join!(
+        client_a_select.iso_select_application_on_simulation(simulation_ref.clone(), &applet_aid),
+        client_b_raw.transmit_raw_sim_apdu(simulation_ref.clone(), &select_apdu),
+        client_a_status.get_simulation(simulation_ref.clone()),
+        client_b_session.get_simulation_session_state(simulation_ref.clone()),
+        client_a_events.simulation_events(simulation_ref.clone()),
+        client_a_service.service_status(),
+        client_b_service.service_status(),
+    );
+
+    assert_eq!(select_result.expect("typed select").sw, 0x9000);
+    assert_eq!(raw_result.expect("raw select").response.sw, 0x9000);
+    assert_eq!(
+        status_result.expect("simulation status").status,
+        jcim_sdk::SimulationStatus::Running
+    );
+    let _session_state = session_result.expect("session state");
+    assert!(service_status_a.expect("service status A").running);
+    assert!(service_status_b.expect("service status B").running);
+    let _events = events_result.expect("simulation events");
+
+    let stopped = client_a
+        .stop_simulation(simulation_ref)
+        .await
+        .expect("stop simulation");
+    assert_eq!(stopped.status, jcim_sdk::SimulationStatus::Stopped);
+
+    stop_managed_daemon(&managed_paths).await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+fn copy_jcimd_binary(destination: PathBuf) -> PathBuf {
+    let source = canonical_jcimd_binary();
+    match std::fs::hard_link(&source, &destination) {
+        Ok(()) => destination,
+        Err(_) => {
+            std::fs::copy(&source, &destination).expect("copy jcimd binary");
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            {
+                let mut permissions = std::fs::metadata(&destination)
+                    .expect("copied binary metadata")
+                    .permissions();
+                permissions.set_mode(0o755);
+                std::fs::set_permissions(&destination, permissions)
+                    .expect("copied binary permissions");
+            }
+            destination
+        }
+    }
+}
+
+fn canonical_jcimd_binary() -> PathBuf {
+    if let Some(path) = std::env::var_os("JCIM_SERVICE_BIN") {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return path.canonicalize().unwrap_or(path);
+        }
+    }
+    if let Some(path) = std::env::var_os("CARGO_BIN_EXE_jcimd") {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return path.canonicalize().unwrap_or(path);
+        }
+    }
+
+    let current = std::env::current_exe().expect("current test executable");
+    let parent = current.parent().expect("test executable parent");
+    let candidates = [
+        parent.join("jcimd"),
+        parent
+            .parent()
+            .expect("test executable grandparent")
+            .join("jcimd"),
+    ];
+    for candidate in candidates {
+        if candidate.exists() {
+            return candidate.canonicalize().unwrap_or(candidate);
+        }
+    }
+
+    panic!("unable to locate jcimd near {}", current.display());
+}
+
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("repo root")
+}
+
+fn lifecycle_lock() -> &'static tokio::sync::Mutex<()> {
+    static LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
+}
+
+async fn stop_managed_daemon(managed_paths: &ManagedPaths) {
+    let Some(record) = ServiceRuntimeRecord::load_if_present(&managed_paths.runtime_metadata_path)
+        .expect("load runtime metadata")
+    else {
+        return;
+    };
+
+    let status = Command::new("kill")
+        .arg("-TERM")
+        .arg(record.pid.to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .expect("send SIGTERM");
+    assert!(
+        status.success(),
+        "SIGTERM failed for recorded jcimd pid {} with status {}",
+        record.pid,
+        status
+    );
+
+    if !wait_for_pid_absent(record.pid, 80).await {
+        let kill_status = Command::new("kill")
+            .arg("-KILL")
+            .arg(record.pid.to_string())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("send SIGKILL");
+        assert!(
+            kill_status.success(),
+            "SIGKILL failed for recorded jcimd pid {} with status {}",
+            record.pid,
+            kill_status
+        );
+        assert!(
+            wait_for_pid_absent(record.pid, 40).await,
+            "jcimd pid {} did not exit after SIGTERM and SIGKILL",
+            record.pid
+        );
+    }
+    wait_for_path_absent(&managed_paths.service_socket_path).await;
+    wait_for_path_absent(&managed_paths.runtime_metadata_path).await;
+}
+
+async fn wait_for_child_exit(child: &mut std::process::Child) {
+    for _ in 0..80 {
+        if child.try_wait().expect("poll child").is_some() {
+            return;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+    panic!("copied jcimd child did not exit after the SDK replaced it");
+}
+
+async fn wait_for_pid_absent(pid: u32, attempts: usize) -> bool {
+    for _ in 0..attempts {
+        let output = Command::new("ps")
+            .arg("-p")
+            .arg(pid.to_string())
+            .arg("-o")
+            .arg("stat=")
+            .stdin(Stdio::null())
+            .output()
+            .expect("poll pid");
+        if !output.status.success() {
+            return true;
+        }
+        let state = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if state.is_empty() || state.starts_with('Z') {
+            return true;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+    false
+}
+
+async fn wait_for_path_absent(path: &std::path::Path) {
+    for _ in 0..80 {
+        if !path.exists() {
+            return;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+    panic!("path {} still exists after shutdown", path.display());
 }

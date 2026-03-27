@@ -1,4 +1,4 @@
-//! Runtime and project configuration types and loaders for JCIM 0.2.
+//! Runtime and project configuration types and loaders for JCIM 0.3.
 //!
 //! # Why this exists
 //! Configuration needs to stay transport-agnostic so the local service, CLI shell, runtime

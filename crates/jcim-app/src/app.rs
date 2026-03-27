@@ -40,14 +40,14 @@ use crate::model::{
     CardInstallSummary, CardPackageInventory, CardReaderSummary, CardStatusSummary, EventLine,
     GpSecureChannelSummary, ManageChannelSummary, OverviewSummary, ProjectDetails,
     ProjectSelectorInput, ProjectSummary, ResetSummary, SecureMessagingSummary,
-    ServiceStatusSummary, SetupSummary, SimulationEngineMode, SimulationSelectorInput,
-    SimulationSourceKind, SimulationStatusKind, SimulationSummary,
+    ServiceStatusSummary, SetupSummary, SimulationSelectorInput, SimulationStatusKind,
+    SimulationSummary,
 };
 use crate::registry::{ProjectRegistry, normalize_project_root};
 
 const EVENT_LIMIT: usize = 32;
 
-/// Transport-neutral application façade for the JCIM 0.2 local platform.
+/// Transport-neutral application façade for the JCIM 0.3 local platform.
 #[derive(Clone)]
 pub struct JcimApp {
     /// Shared mutable application state.
@@ -69,11 +69,8 @@ struct AppState {
 
 struct SimulationRecord {
     simulation_id: String,
-    source_kind: SimulationSourceKind,
-    project_id: Option<String>,
-    project_path: Option<PathBuf>,
-    cap_path: PathBuf,
-    engine_mode: SimulationEngineMode,
+    project_id: String,
+    project_path: PathBuf,
     status: SimulationStatusKind,
     reader_name: String,
     health: String,
@@ -122,14 +119,7 @@ impl JcimApp {
         managed_paths: ManagedPaths,
         card_adapter: Arc<dyn PhysicalCardAdapter>,
     ) -> Result<Self> {
-        std::fs::create_dir_all(&managed_paths.root)?;
-        std::fs::create_dir_all(managed_paths.service_socket_path.parent().ok_or_else(|| {
-            JcimError::Unsupported(
-                "managed service socket path has no parent directory".to_string(),
-            )
-        })?)?;
-        std::fs::create_dir_all(&managed_paths.log_dir)?;
-        std::fs::create_dir_all(&managed_paths.bundle_root)?;
+        managed_paths.prepare_layout()?;
 
         let user_config = UserConfig::load_or_default(&managed_paths.config_path)?;
         let registry = ProjectRegistry::load_or_default(&managed_paths.registry_path)?;
@@ -1074,7 +1064,30 @@ impl JcimApp {
             JavaRuntimeSource::Configured => "configured",
         };
         Ok(vec![
-            format!("Managed root: {}", self.state.managed_paths.root.display()),
+            format!(
+                "Managed data root: {}",
+                self.state.managed_paths.root.display()
+            ),
+            format!(
+                "Managed config dir: {}",
+                self.state.managed_paths.config_dir.display()
+            ),
+            format!(
+                "Managed state dir: {}",
+                self.state.managed_paths.state_dir.display()
+            ),
+            format!(
+                "Managed runtime dir: {}",
+                self.state.managed_paths.runtime_dir.display()
+            ),
+            format!(
+                "Managed cache dir: {}",
+                self.state.managed_paths.cache_dir.display()
+            ),
+            format!(
+                "Managed log dir: {}",
+                self.state.managed_paths.log_dir.display()
+            ),
             format!(
                 "Config path: {}",
                 self.state.managed_paths.config_path.display()
@@ -1086,6 +1099,14 @@ impl JcimApp {
             format!(
                 "Service socket: {}",
                 self.state.managed_paths.service_socket_path.display()
+            ),
+            format!(
+                "Service runtime metadata: {}",
+                self.state.managed_paths.runtime_metadata_path.display()
+            ),
+            format!(
+                "Managed runtime asset root: {}",
+                self.state.managed_paths.bundle_root.display()
             ),
             format!("Configured Java bin: {}", user_config.java_bin),
             format!(
@@ -1259,11 +1280,8 @@ impl JcimApp {
         Ok(PreparedSimulation {
             summary: SimulationSummary {
                 simulation_id,
-                source_kind: SimulationSourceKind::Project,
-                project_id: Some(resolved.project_id),
-                project_path: Some(resolved.project_root),
-                cap_path,
-                engine_mode: engine_mode_for_current_host(),
+                project_id: resolved.project_id,
+                project_path: resolved.project_root,
                 status: SimulationStatusKind::Starting,
                 reader_name: runtime_config
                     .reader_name
@@ -1290,11 +1308,7 @@ impl JcimApp {
         reset_after_start: bool,
     ) -> Result<SimulationSummary> {
         let bundle_dir = prepared.runtime_config.backend_bundle_dir();
-        ensure_host_simulator_environment(
-            prepared.summary.engine_mode,
-            &bundle_dir,
-            prepared.runtime_config.profile_id,
-        )?;
+        ensure_host_simulator_environment(&bundle_dir, prepared.runtime_config.profile_id)?;
         let handle = BackendHandle::from_config(prepared.runtime_config)?;
         let handshake = handle.handshake(ProtocolVersion::current()).await?;
         if reset_after_start {
@@ -1319,11 +1333,8 @@ impl JcimApp {
 
         let mut record = SimulationRecord {
             simulation_id: prepared.summary.simulation_id.clone(),
-            source_kind: prepared.summary.source_kind,
             project_id: prepared.summary.project_id.clone(),
             project_path: prepared.summary.project_path.clone(),
-            cap_path: prepared.summary.cap_path.clone(),
-            engine_mode: prepared.summary.engine_mode,
             status: SimulationStatusKind::Running,
             reader_name: handshake.reader_name,
             health: format!("{} ({})", health.message, health.status.status_string()),
@@ -1347,7 +1358,7 @@ impl JcimApp {
         remember_event(
             &mut record.recent_events,
             "info",
-            format!("simulation started from {}", record.source_kind.as_str()),
+            format!("simulation started for project {}", record.project_id),
         );
 
         let summary = record.summary();
@@ -1606,11 +1617,8 @@ impl SimulationRecord {
     fn summary(&self) -> SimulationSummary {
         SimulationSummary {
             simulation_id: self.simulation_id.clone(),
-            source_kind: self.source_kind,
             project_id: self.project_id.clone(),
             project_path: self.project_path.clone(),
-            cap_path: self.cap_path.clone(),
-            engine_mode: self.engine_mode,
             status: self.status,
             reader_name: self.reader_name.clone(),
             health: self.health.clone(),
@@ -1681,15 +1689,7 @@ fn required_artifact_path(
     Ok(project_root.join(relative))
 }
 
-fn engine_mode_for_current_host() -> SimulationEngineMode {
-    SimulationEngineMode::ManagedJava
-}
-
-fn ensure_host_simulator_environment(
-    _engine_mode: SimulationEngineMode,
-    _bundle_dir: &Path,
-    _profile_id: CardProfileId,
-) -> Result<()> {
+fn ensure_host_simulator_environment(_bundle_dir: &Path, _profile_id: CardProfileId) -> Result<()> {
     Ok(())
 }
 
@@ -1828,22 +1828,11 @@ fn sample_applet_source(package_name: &str, class_name: &str) -> String {
 mod tests {
     use jcim_core::model::CardProfileId;
 
-    use super::{
-        SimulationEngineMode, engine_mode_for_current_host, ensure_host_simulator_environment,
-    };
+    use super::ensure_host_simulator_environment;
 
     #[test]
-    fn simulator_engine_defaults_to_managed_java() {
-        assert_eq!(
-            engine_mode_for_current_host(),
-            SimulationEngineMode::ManagedJava
-        );
-    }
-
-    #[test]
-    fn host_environment_check_is_noop_for_managed_java() {
+    fn host_environment_check_is_noop_for_managed_runtime() {
         ensure_host_simulator_environment(
-            SimulationEngineMode::ManagedJava,
             std::path::Path::new("/tmp/jcim/bundled-backends/simulator"),
             CardProfileId::Classic304,
         )

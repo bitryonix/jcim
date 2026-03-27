@@ -1,6 +1,6 @@
 # jcim-app
 
-`jcim-app` is the transport-neutral application core for JCIM 0.2.
+`jcim-app` is the transport-neutral application core for JCIM 0.3.
 
 It owns:
 

@@ -23,47 +23,6 @@ pub struct SimulationSelectorInput {
     pub simulation_id: String,
 }
 
-/// Input source used for one running simulation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SimulationSourceKind {
-    /// A JCIM project was built to CAP and started in the simulator.
-    Project,
-    /// Legacy source kind kept only for compatibility with older records.
-    Cap,
-}
-
-impl SimulationSourceKind {
-    /// Return the canonical lowercase name used in user-facing surfaces.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Project => "project",
-            Self::Cap => "cap",
-        }
-    }
-}
-
-/// Engine mode used to host one running simulation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SimulationEngineMode {
-    /// Legacy engine mode kept for decode compatibility with older records.
-    Native,
-    /// Legacy engine mode kept for decode compatibility with older records.
-    Container,
-    /// The simulator is running in a bundled managed JVM.
-    ManagedJava,
-}
-
-impl SimulationEngineMode {
-    /// Return the canonical lowercase name used in user-facing surfaces.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Native => "native",
-            Self::Container => "container",
-            Self::ManagedJava => "managed_java",
-        }
-    }
-}
-
 /// Lifecycle status for a managed simulation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SimulationStatusKind {
@@ -160,16 +119,10 @@ pub struct EventLine {
 pub struct SimulationSummary {
     /// Stable simulation id.
     pub simulation_id: String,
-    /// Input source used to create the running simulation.
-    pub source_kind: SimulationSourceKind,
-    /// Owning project id when the simulation came from a project.
-    pub project_id: Option<String>,
-    /// Absolute project root path when the simulation came from a project.
-    pub project_path: Option<PathBuf>,
-    /// Absolute CAP path installed into the simulator.
-    pub cap_path: PathBuf,
-    /// Simulator engine mode.
-    pub engine_mode: SimulationEngineMode,
+    /// Owning project id.
+    pub project_id: String,
+    /// Absolute project root path.
+    pub project_path: PathBuf,
     /// Current simulation lifecycle status.
     pub status: SimulationStatusKind,
     /// Reader name exposed by the simulation.

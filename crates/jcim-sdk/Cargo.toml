@@ -2,7 +2,7 @@
 name = "jcim-sdk"
 version.workspace = true
 edition.workspace = true
-description = "Canonical Rust lifecycle API for JCIM 0.2"
+description = "Canonical Rust lifecycle API for JCIM 0.3"
 readme = "README.md"
 
 [lints]

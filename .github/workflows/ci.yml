@@ -6,7 +6,13 @@ on:
 
 jobs:
   rust:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -18,6 +24,22 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo clippy --workspace --all-targets --all-features -- -W clippy::missing_docs_in_private_items
       - run: cargo test --workspace --all-features
+      - run: cargo test -p jcim-cli --test docs_smoke
+      - run: cargo test -p jcim-cli --test json_contract
+      - run: cargo test -p jcim-sdk --test docs_examples
       - run: cargo test --workspace --doc
       - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
       - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.1
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p jcim-config --test third_party_governance
+      - run: cargo install --locked cargo-audit cargo-deny
+      - run: cargo audit
+      - run: cargo deny check

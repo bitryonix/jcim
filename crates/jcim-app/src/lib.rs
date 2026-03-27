@@ -1,7 +1,7 @@
-//! Transport-neutral application core for JCIM 0.2.
+//! Transport-neutral application core for JCIM 0.3.
 //!
 //! # Why this exists
-//! JCIM 0.2 is centered on one local control plane instead of ad hoc CLI orchestration. This
+//! JCIM 0.3 is centered on one local control plane instead of ad hoc CLI orchestration. This
 //! crate owns the application-service boundary between transport shells such as the CLI or future
 //! desktop UI and the lower-level build, simulator, and card adapters.
 //!
@@ -24,6 +24,6 @@ pub use model::{
     AppletSummary, ArtifactSummary, CardAppletInventory, CardAppletSummary, CardDeleteSummary,
     CardInstallSummary, CardPackageInventory, CardPackageSummary, CardReaderSummary,
     CardStatusSummary, EventLine, GpSecureChannelSummary, OverviewSummary, ProjectDetails,
-    ProjectSelectorInput, ProjectSummary, ServiceStatusSummary, SetupSummary, SimulationEngineMode,
-    SimulationSelectorInput, SimulationSourceKind, SimulationStatusKind, SimulationSummary,
+    ProjectSelectorInput, ProjectSummary, ServiceStatusSummary, SetupSummary,
+    SimulationSelectorInput, SimulationStatusKind, SimulationSummary,
 };

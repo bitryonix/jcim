@@ -1,6 +1,6 @@
 # jcim-cli
 
-`jcim-cli` is the task-oriented shell for the JCIM 0.2 local platform.
+`jcim-cli` is the task-oriented shell for the JCIM 0.3 local platform.
 
 It is intentionally thin:
 
@@ -19,9 +19,11 @@ Primary commands:
 
 Maintained task paths:
 
-- typed simulator workflows: `jcim sim iso ...` and `jcim sim gp ...`
+- typed simulator workflows: `jcim sim iso ...`
 - typed physical-card workflows: `jcim card iso ...` and `jcim card gp ...`
 - raw APDU passthrough: `jcim sim apdu` and `jcim card apdu` as the expert escape hatch
+- simulator GP workflows remain available as an expert surface, but they are not part of the
+  stable automation guarantee yet
 
 Further reading:
 

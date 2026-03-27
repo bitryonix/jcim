@@ -2,11 +2,11 @@
 
 ## Intent
 
-`jcim-api` owns the public local-service contract for JCIM 0.2.
+`jcim-api` owns the sole maintained public local-service contract for JCIM 0.3.
 
 ## Structure
 
-- `proto/jcim/v0_2/service.proto`: source-of-truth protobuf schema
+- `proto/jcim/v0_3/service.proto`: source-of-truth protobuf schema
 - `build.rs`: protobuf/gRPC code generation
 - `src/lib.rs`: generated-code façade
 

@@ -1,4 +1,4 @@
-//! Canonical Rust lifecycle API for JCIM 0.2.
+//! Canonical Rust lifecycle API for JCIM 0.3.
 //!
 //! # Why this exists
 //! JCIM is service-first, but Rust callers still need a supported API that covers project build,
@@ -25,6 +25,6 @@ pub use types::{
     CardDeleteSummary, CardInstallSource, CardInstallSummary, CardPackageInventory,
     CardPackageSummary, CardReaderSummary, CardStatusSummary, EventLine, GpSecureChannelSummary,
     ManageChannelSummary, OverviewSummary, ProjectDetails, ProjectRef, ProjectSummary, ReaderRef,
-    ResetSummary, SecureMessagingSummary, ServiceStatusSummary, SetupSummary, SimulationEngineMode,
-    SimulationInput, SimulationRef, SimulationSourceKind, SimulationStatus, SimulationSummary,
+    ResetSummary, SecureMessagingSummary, ServiceStatusSummary, SetupSummary, SimulationRef,
+    SimulationStatus, SimulationSummary,
 };

@@ -1,4 +1,4 @@
-# JCIM 0.2
+# JCIM 0.3
 
 > [!WARNING]
 > **JCIM is an internal workbench for Boomlet development, not a finished product.**
@@ -6,7 +6,7 @@
 > production-ready. JCIM exists to support the development, simulation, testing, and card
 > operations workflow for **Boomlet**, the Java Card applet used in **Boomerang**.
 
-JCIM 0.2 is a local Java Card simulator workbench built around one user-local gRPC service, a
+JCIM 0.3 is a local Java Card simulator workbench built around one user-local gRPC service, a
 transport-neutral application core, a managed class-backed simulator pipeline, a canonical Rust
 lifecycle API, and a thin task-oriented CLI.
 
@@ -125,10 +125,21 @@ helpers on `JcimClient` for higher-level admin workflows.
 - `[simulator]`: auto-build and reset defaults for simulator startup
 - `[card]`: physical-card defaults
 
-Machine-local settings live outside the project under the managed JCIM root:
+Machine-local settings live outside the project under a split managed layout:
 
-- macOS: `~/Library/Application Support/jcim/`
-- Linux: `$XDG_DATA_HOME/jcim` or `~/.local/share/jcim/`
+- macOS:
+  - config: `~/Library/Application Support/jcim/config/`
+  - durable state: `~/Library/Application Support/jcim/state/`
+  - runtime socket/state: `~/Library/Application Support/jcim/run/`
+  - logs: `~/Library/Logs/jcim/`
+  - cache: `~/Library/Caches/jcim/`
+  - extracted runtime assets: `~/Library/Application Support/jcim/data/bundled/`
+- Linux:
+  - config: `$XDG_CONFIG_HOME/jcim` or `~/.config/jcim/`
+  - durable data/assets: `$XDG_DATA_HOME/jcim` or `~/.local/share/jcim/`
+  - durable state/logs: `$XDG_STATE_HOME/jcim` or `~/.local/state/jcim/`
+  - runtime socket/state: `$XDG_RUNTIME_DIR/jcim` or `~/.local/state/jcim/run/`
+  - cache: `$XDG_CACHE_HOME/jcim` or `~/.cache/jcim/`
 
 ## Current posture
 
@@ -144,6 +155,28 @@ Machine-local settings live outside the project under the managed JCIM root:
   simulator, hardware-gated, and limited to directly observed plus JCIM-tracked state.
 - The Rust SDK includes typed ISO/IEC 7816 and GlobalPlatform helpers, but real-card GP admin
   commands still depend on the card accepting the caller's authenticated state or secure channel.
+- CLI `--json` is a versioned automation surface for maintained task-oriented commands. Success and
+  error envelopes now carry `schema_version = "jcim-cli.v2"` plus a stable `kind` marker.
+- Expert simulator control paths such as `jcim sim gp ...` remain available, but they are not part
+  of the current automation compatibility guarantee.
+
+## Verification gates
+
+- Pull requests run the Rust correctness matrix on Linux and macOS plus an Ubuntu supply-chain job
+  that executes `cargo audit` and `cargo deny check`.
+- Pull requests also run the targeted docs/contract/governance smoke tests directly so published
+  command snippets, JSON envelopes, and bundled-asset manifests stay review-blocking.
+- Release preflight runs on manual dispatch and version tags from a clean Cargo target directory
+  and reruns fmt, clippy, tests, rustdoc, `cargo audit`, `cargo deny check`, and the targeted
+  third-party governance tests.
+- Local `cargo audit`, `cargo deny`, and raw `cargo metadata` checks can still depend on network
+  access and preinstalled subcommands. CI remains the canonical release gate when local sandboxes
+  deny crates.io access.
+- Bundled and vendored runtime updates under `third_party/` or `bundled-backends/` must update
+  `third_party/THIRD_PARTY.toml` in the same change set so provenance, license, checksum, and
+  cadence data stay in sync with the shipped artifacts.
+- Temporary advisory or license exceptions belong in `deny.toml` with a short reason and an expiry
+  date or follow-up issue. Keep that file empty by default and remove exceptions before release.
 
 ## Reference docs
 
@@ -155,4 +188,5 @@ Machine-local settings live outside the project under the managed JCIM root:
 - Rust SDK: [`crates/jcim-sdk/README.md`](crates/jcim-sdk/README.md)
 - Limitations: [`LIMITATIONS.md`](LIMITATIONS.md)
 - Design decisions: [`DESIGNDECISIONS.md`](DESIGNDECISIONS.md)
+- Migration notes: [`docs/migration-0.3.md`](docs/migration-0.3.md)
 - ADR index: [`docs/adr/README.md`](docs/adr/README.md)

@@ -10,10 +10,27 @@ If you have installed the binary separately, replace that prefix with `jcim`.
 
 ## Maintained path
 
-The maintained operator path is typed ISO/IEC 7816 and typed GlobalPlatform:
+The maintained simulator path is:
 
+- `jcim sim start|status|logs|reset|stop`
 - `jcim sim iso ...`
-- `jcim sim gp ...`
+- `jcim sim apdu`
+
+The maintained machine-readable automation contract currently covers:
+
+- `jcim project ...`
+- `jcim build ...`
+- `jcim sim start|status|logs|reset|stop`
+- `jcim sim iso ...`
+- `jcim sim apdu`
+- `jcim card readers|status|install|delete|packages|applets|reset`
+- `jcim card iso ...`
+- `jcim card gp ...`
+- `jcim card apdu`
+- `jcim system setup|doctor|service status`
+
+The maintained physical-card admin path is:
+
 - `jcim card iso ...`
 - `jcim card gp ...`
 
@@ -35,7 +52,7 @@ Raw APDU passthrough remains available as the expert escape hatch:
   - lifecycle: `start`, `status`, `logs`, `reset`, `stop`
   - typed ISO: `iso status`, `iso select`, `iso channel-open`, `iso channel-close`,
     `iso secure-open`, `iso secure-advance`, `iso secure-close`
-  - typed GP: `gp auth open`, `gp auth close`, `gp select-isd`, `gp get-status`,
+  - expert GP surface: `gp auth open`, `gp auth close`, `gp select-isd`, `gp get-status`,
     `gp set-card-status`, `gp set-application-status`, `gp set-security-domain-status`
   - raw escape hatch: `apdu`
 - `jcim card ...`
@@ -55,6 +72,12 @@ Raw APDU passthrough remains available as the expert escape hatch:
 ## Important behavior
 
 - Use `--json` on any command for structured output.
+- JSON output is the stable automation surface. Success payloads include
+  `schema_version = "jcim-cli.v2"` plus a stable `kind` marker while keeping the existing payload
+  keys at the top level. JSON-mode failures go to `stderr` with the same version marker.
+- The stability guarantee applies to the maintained command families listed above, not to every
+  experimental or expert-only path.
+- Human-readable output remains operator-facing and is not the automation contract.
 - Simulation commands auto-target the current simulation only when exactly one simulation exists.
   Otherwise pass `--simulation <id>` from `jcim sim status`.
 - Card commands that touch hardware require a real PC/SC reader, and most of them also require a
@@ -63,5 +86,8 @@ Raw APDU passthrough remains available as the expert escape hatch:
 - Hardware install or GP-auth workflows may also require `JCIM_GP_DEFAULT_KEYSET` plus matching
   `JCIM_GP_<NAME>_{MODE,ENC,MAC,DEK}` environment variables.
 - `jcim sim start --project <path>` is the maintained simulator entrypoint.
+- `jcim sim gp ...` remains available as an expert surface for simulator backends that expose a
+  compatible security domain, but it is not the default simulator lifecycle path and is not part
+  of the current stable JSON compatibility promise.
 - `jcim card iso ...` and `jcim card gp ...` report observational real-card state; they do not
   pretend to know hidden on-card state JCIM did not directly observe.

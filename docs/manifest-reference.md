@@ -1,6 +1,6 @@
 # Manifest Reference
 
-JCIM 0.2 uses `jcim.toml` as the project-facing manifest.
+JCIM 0.3 uses `jcim.toml` as the project-facing manifest.
 
 ## Sections
 

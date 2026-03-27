@@ -2,25 +2,61 @@
 name = "GlobalPlatformPro"
 version = "latest release matching commit 72f85b982c8eb2f0de34691a8c7e1771412a5349"
 artifact = "third_party/gppro/gp.jar"
+sha256 = "c88e0c5093032ec4571571f5397b6174e56bf632667950fa5bb716338534b122"
 license = "LGPL-3.0-or-later"
 upstream = "https://github.com/martinpaljak/GlobalPlatformPro"
+update_cadence = "Review on upstream release or whenever JCIM physical-card workflows change."
 notes = "Bundled so JCIM can power physical-card install, delete, package, and applet operations without requiring a separate GPPro install."
 
 [ecj]
 name = "Eclipse Compiler for Java"
 version = "3.33.0"
 artifact = "third_party/ecj/ecj.jar"
+sha256 = "f7686c4960cf70c2ebc5c500a73a8cfc04541b730c18f1c5c21329889b137f45"
 license = "EPL-2.0"
 upstream = "https://repo1.maven.org/maven2/org/eclipse/jdt/ecj/"
+update_cadence = "Review when Java Card build inputs change and before each release cut."
 notes = "Bundled because Java Card source builds need an in-repo compiler that can still target the older classfile levels accepted by the Java Card converter while remaining runnable on the repo-bundled Temurin 11 runtime."
 
 [ant_javacard]
 name = "ant-javacard"
 version = "latest release downloaded for the repo-bundled toolchain"
 artifact = "third_party/ant_javacard/ant-javacard.jar"
+sha256 = "779909502744af7eb8c24b7b423c4efa6fbf47a1274a11ddf8c49697b1028e64"
 license = "Apache-2.0"
 upstream = "https://github.com/martinpaljak/ant-javacard"
+update_cadence = "Review when the bundled Java Card toolchain changes and before each release cut."
 notes = "Bundled for provenance and compatibility with the JCIM Java Card build toolchain."
+
+[jcardsim]
+name = "jCardSim runtime"
+version = "repo-pinned simulator dependency"
+artifact = "third_party/jcardsim/jcardsim.jar"
+sha256 = "1cdf4e5b070eaf67f5e72276606261bf75d3a0e6d8a59994d69ac4554cfc9ab6"
+license = "See upstream project and bundled notices before redistribution changes."
+upstream = "https://github.com/licel/jcardsim"
+update_cadence = "Review whenever the managed simulator backend changes or the pinned upstream version changes."
+notes = "Bundled because the maintained simulator backend launches the pinned jCardSim runtime directly from the repository."
+
+[jcim_card_helper]
+name = "JCIM card helper"
+version = "workspace-built helper jar pinned by the repository"
+artifact = "third_party/jcim_card_helper/jcim-card-helper.jar"
+sha256 = "f376e843f9d98377afae29ee08d633aacf6ff555216f69f65ba174c327c0d0c0"
+license = "Project-local source; review repository licensing before redistribution changes."
+upstream = "In-repo source under third_party/jcim_card_helper/src"
+update_cadence = "Rebuild and re-verify whenever helper sources or physical-card workflows change."
+notes = "Bundled so JCIM can provide physical-card helper flows without requiring an external build step on operator machines."
+
+[jcim_simulator_backend]
+name = "JCIM managed simulator backend"
+version = "workspace-built backend jar pinned by the repository"
+artifact = "bundled-backends/simulator/libs/jcim-simulator-backend.jar"
+sha256 = "3d4949d32b31b93e02cfb3dc14c0b0a4c6787b621ae630fe9d5ece102360f736"
+license = "Project-local source; review repository licensing before redistribution changes."
+upstream = "In-repo managed simulator backend sources"
+update_cadence = "Rebuild and re-verify whenever bundled-backends/simulator inputs change before release."
+notes = "Bundled because the maintained simulator path launches this repository-built backend jar as the only supported managed simulator bundle."
 
 [javacard_sdks]
 name = "Java Card classic SDK bundle"
@@ -28,6 +64,7 @@ version = "jc211, jc221, jc222, jc303, jc304, jc305u4"
 artifact = "third_party/javacard_sdks"
 license = "See Oracle Java Card SDK terms and provenance review before redistribution changes."
 upstream = "https://github.com/martinpaljak/oracle_javacard_sdks"
+update_cadence = "Review whenever supported classic profiles change or before redistribution changes."
 notes = "Bundled to provide converter jars, export files, and API jars for source-first CAP builds across the supported classic profile family."
 
 [temurin_runtime_bundle]
@@ -36,7 +73,8 @@ version = "11.0.30+7"
 artifact = "third_party/java-runtimes/temurin-11.0.30+7"
 license = "GPL-2.0-only WITH Classpath-exception-2.0"
 upstream = "https://github.com/adoptium/temurin11-binaries"
-notes = "Bundled so JCIM can run managed simulator, build, and helper Java workflows out of the box on supported macOS and Linux hosts without requiring a host Java install."
+update_cadence = "Review on each bundled Temurin bump and before release."
+notes = "Bundled so JCIM can run managed simulator, build, and helper Java workflows out of the box on supported macOS and Linux hosts without requiring a host Java install. Per-archive SHA-256 values are tracked in third_party/java-runtimes/README.md and enforced in crates/jcim-app/src/java_runtime.rs."
 
 [satochip_sources]
 name = "SatochipApplet source example"
@@ -44,4 +82,5 @@ version = "pinned upstream commit 8cbaa1d6531df7e20c7a3d47d95766db51d9a136"
 artifact = "examples/satochip/workdir/src/main/javacard/org/satochip/applet"
 license = "Mixed upstream source headers, including LGPL-2.1-or-later and AGPL-3.0-or-later notices; review before redistribution changes."
 upstream = "https://github.com/Toporin/SatoChipApplet"
+update_cadence = "Review whenever the pinned example commit changes."
 notes = "Vendored so the JCIM Satochip example is source-backed and builds its CAP inside the repo."

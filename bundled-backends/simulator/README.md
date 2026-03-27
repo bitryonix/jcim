@@ -1,6 +1,6 @@
 ## Managed Simulator Bundle
 
-This directory contains the maintained managed-Java simulator backend for JCIM 0.2.
+This directory contains the maintained managed-Java simulator backend for JCIM 0.3.
 
 It is launched by the local JCIM service through `jcim-backends` and is responsible for:
 
@@ -32,3 +32,10 @@ The backend does not install CAP files directly. JCIM starts simulations from pr
 classes, runtime classpath entries, and simulator metadata.
 
 This is the only maintained simulator bundle in the workspace.
+
+Governance:
+
+- `libs/jcim-simulator-backend.jar` and `third_party/jcardsim/jcardsim.jar` are tracked in
+  `third_party/THIRD_PARTY.toml` with explicit update cadence and SHA-256 verification.
+- Changes to the backend jar or the pinned `jcardsim` jar should update that manifest in the same
+  review as the binary refresh.

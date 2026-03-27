@@ -733,7 +733,7 @@ checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 
 [[package]]
 name = "jcim-api"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "prost",
  "tonic",
@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "jcim-app"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "hex",
@@ -760,7 +760,7 @@ dependencies = [
 
 [[package]]
 name = "jcim-backends"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "hex",
  "jcim-cap",
@@ -774,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "jcim-build"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "hex",
  "jcim-config",
@@ -786,7 +786,7 @@ dependencies = [
 
 [[package]]
 name = "jcim-cap"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "flate2",
  "hex",
@@ -798,29 +798,32 @@ dependencies = [
 
 [[package]]
 name = "jcim-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "clap",
  "hex",
+ "jcim-app",
  "jcim-config",
  "jcim-core",
  "jcim-sdk",
+ "jcimd",
  "serde_json",
  "tokio",
 ]
 
 [[package]]
 name = "jcim-config"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jcim-core",
  "serde",
+ "sha2",
  "toml",
 ]
 
 [[package]]
 name = "jcim-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "hex",
  "serde",
@@ -831,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "jcim-sdk"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aes",
  "cbc",
@@ -856,7 +859,7 @@ dependencies = [
 
 [[package]]
 name = "jcimd"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "clap",
  "hyper-util",

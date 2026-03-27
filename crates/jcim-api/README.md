@@ -1,6 +1,6 @@
 # jcim-api
 
-`jcim-api` defines the local gRPC contract for the JCIM 0.2 service-first architecture.
+`jcim-api` defines the sole maintained local gRPC contract for the JCIM 0.3 service-first architecture.
 
 It is the source of truth for:
 

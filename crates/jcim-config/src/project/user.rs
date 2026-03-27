@@ -1,4 +1,4 @@
-//! Machine-local user configuration for the JCIM 0.2 local platform.
+//! Machine-local user configuration for the JCIM 0.3 local platform.
 
 use std::path::{Path, PathBuf};
 

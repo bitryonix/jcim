@@ -2,12 +2,21 @@
 
 #![forbid(unsafe_code)]
 
+#[path = "../../../tests/support/socket.rs"]
+mod socket_support;
+
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn satochip_lifecycle_example_runs_from_docs_flow() {
+    if !socket_support::unix_domain_sockets_supported(
+        "satochip_lifecycle_example_runs_from_docs_flow",
+    ) {
+        return;
+    }
+
     let root = temp_root("docs-example-lifecycle");
     let output = run_example(&root, "satochip_lifecycle", &[]);
     assert!(output.contains("Started simulation"));
@@ -16,6 +25,11 @@ fn satochip_lifecycle_example_runs_from_docs_flow() {
 
 #[test]
 fn satochip_wallet_example_runs_from_docs_flow() {
+    if !socket_support::unix_domain_sockets_supported("satochip_wallet_example_runs_from_docs_flow")
+    {
+        return;
+    }
+
     let root = temp_root("docs-example-wallet");
     let output = run_example(&root, "satochip_wallet", &[]);
     assert!(output.contains("Started virtual Satochip target:"));
@@ -25,6 +39,11 @@ fn satochip_wallet_example_runs_from_docs_flow() {
 #[test]
 fn hardware_gated_wallet_example_runs_when_enabled() {
     if std::env::var("JCIM_HARDWARE_TESTS").ok().as_deref() != Some("1") {
+        return;
+    }
+    if !socket_support::unix_domain_sockets_supported(
+        "hardware_gated_wallet_example_runs_when_enabled",
+    ) {
         return;
     }
 

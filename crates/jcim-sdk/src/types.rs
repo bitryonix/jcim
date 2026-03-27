@@ -58,13 +58,6 @@ impl SimulationRef {
     }
 }
 
-/// Input source used to start one simulation.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub enum SimulationInput {
-    /// Build or reuse one JCIM project and start the simulator from its managed runtime artifacts.
-    Project(ProjectRef),
-}
-
 /// Input source used to install a CAP onto a physical card.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum CardInstallSource {
@@ -105,7 +98,7 @@ pub enum CardConnectionTarget {
     /// Attach one connection to an already-running simulation.
     ExistingSimulation(SimulationRef),
     /// Start and own one simulation-backed connection.
-    StartSimulation(SimulationInput),
+    StartSimulation(ProjectRef),
 }
 
 /// High-level kind of target behind one unified APDU connection.
@@ -202,30 +195,6 @@ pub struct BuildSummary {
     pub rebuilt: bool,
 }
 
-/// Input source for one managed simulation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-pub enum SimulationSourceKind {
-    /// Simulation came from a JCIM project.
-    Project,
-    /// Legacy source kind kept only for compatibility with older service values.
-    Cap,
-    /// Service returned an unknown value.
-    Unknown,
-}
-
-/// Host mode for one simulation engine.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-pub enum SimulationEngineMode {
-    /// Legacy engine mode returned by older services.
-    Native,
-    /// Legacy engine mode returned by older services.
-    Container,
-    /// Simulator is running in a bundled managed JVM.
-    ManagedJava,
-    /// Service returned an unknown value.
-    Unknown,
-}
-
 /// Lifecycle state for one simulation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub enum SimulationStatus {
@@ -246,16 +215,10 @@ pub enum SimulationStatus {
 pub struct SimulationSummary {
     /// Stable simulation id.
     pub simulation_id: String,
-    /// Input source used to create the simulation.
-    pub source_kind: SimulationSourceKind,
-    /// Owning project id when present.
-    pub project_id: Option<String>,
-    /// Owning project path when present.
-    pub project_path: Option<PathBuf>,
-    /// Installed CAP path.
-    pub cap_path: PathBuf,
-    /// Host engine mode.
-    pub engine_mode: SimulationEngineMode,
+    /// Owning project id.
+    pub project_id: String,
+    /// Owning project path.
+    pub project_path: PathBuf,
     /// Current simulation state.
     pub status: SimulationStatus,
     /// Reader name reported by the backend.

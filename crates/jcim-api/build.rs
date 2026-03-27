@@ -1,7 +1,7 @@
-//! Build script for compiling the JCIM 0.2 protobuf contract.
+//! Build script for compiling the JCIM 0.3 protobuf contract.
 
 fn main() {
-    let proto = "proto/jcim/v0_2/service.proto";
+    let proto = "proto/jcim/v0_3/service.proto";
     println!("cargo:rerun-if-changed={proto}");
     tonic_build::configure()
         .build_server(true)

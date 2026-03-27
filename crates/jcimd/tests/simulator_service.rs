@@ -2,21 +2,22 @@
 
 #![forbid(unsafe_code)]
 
+#[path = "../../../tests/support/socket.rs"]
+mod socket_support;
+
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use hyper_util::rt::TokioIo;
 use tokio::net::UnixStream;
-use tokio::time::{Duration, sleep};
 use tonic::transport::{Channel, Endpoint};
 use tower::service_fn;
 
-use jcim_api::v0_2::build_service_client::BuildServiceClient;
-use jcim_api::v0_2::simulator_service_client::SimulatorServiceClient;
-use jcim_api::v0_2::{
+use jcim_api::v0_3::build_service_client::BuildServiceClient;
+use jcim_api::v0_3::simulator_service_client::SimulatorServiceClient;
+use jcim_api::v0_3::{
     BuildProjectRequest, CommandApduCase, CommandApduFrame, CommandDomain, CommandKind,
-    ProjectSelector, SimulationEngineMode, SimulationSelector, StartSimulationRequest,
-    TransmitApduRequest,
+    ProjectSelector, SimulationSelector, StartSimulationRequest, TransmitApduRequest,
 };
 use jcim_app::JcimApp;
 use jcim_config::project::ManagedPaths;
@@ -25,13 +26,21 @@ use jcim_core::iso7816;
 
 #[tokio::test]
 async fn service_builds_the_source_backed_satochip_example() {
+    if !socket_support::unix_domain_sockets_supported(
+        "service_builds_the_source_backed_satochip_example",
+    ) {
+        return;
+    }
+
     let root = temp_root("service-build");
     let managed_paths = ManagedPaths::for_root(root.clone());
     let socket_path = managed_paths.service_socket_path.clone();
     let app = JcimApp::load_with_paths(managed_paths.clone()).expect("load app");
 
-    let server = tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
-    wait_for_socket(&managed_paths.service_socket_path).await;
+    let mut server =
+        tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
+    socket_support::wait_for_socket_or_server_exit(&managed_paths.service_socket_path, &mut server)
+        .await;
 
     let channel = connect_channel(&managed_paths.service_socket_path)
         .await
@@ -58,13 +67,21 @@ async fn service_builds_the_source_backed_satochip_example() {
 
 #[tokio::test]
 async fn project_backed_simulation_starts_and_exchanges_apdus() {
+    if !socket_support::unix_domain_sockets_supported(
+        "project_backed_simulation_starts_and_exchanges_apdus",
+    ) {
+        return;
+    }
+
     let root = temp_root("project-sim");
     let managed_paths = ManagedPaths::for_root(root.clone());
     let socket_path = managed_paths.service_socket_path.clone();
     let app = JcimApp::load_with_paths(managed_paths.clone()).expect("load app");
 
-    let server = tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
-    wait_for_socket(&managed_paths.service_socket_path).await;
+    let mut server =
+        tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
+    socket_support::wait_for_socket_or_server_exit(&managed_paths.service_socket_path, &mut server)
+        .await;
 
     let channel = connect_channel(&managed_paths.service_socket_path)
         .await
@@ -81,8 +98,6 @@ async fn project_backed_simulation_starts_and_exchanges_apdus() {
         .into_inner()
         .simulation
         .expect("simulation");
-
-    assert_eq!(simulation.engine_mode(), SimulationEngineMode::ManagedJava,);
 
     let exchange = SimulatorServiceClient::new(channel.clone())
         .transmit_apdu(TransmitApduRequest {
@@ -106,7 +121,7 @@ async fn project_backed_simulation_starts_and_exchanges_apdus() {
         .into_inner()
         .simulation
         .expect("stopped simulation");
-    assert_eq!(stopped.status(), jcim_api::v0_2::SimulationStatus::Stopped);
+    assert_eq!(stopped.status(), jcim_api::v0_3::SimulationStatus::Stopped);
 
     server.abort();
     let _ = server.await;
@@ -115,13 +130,19 @@ async fn project_backed_simulation_starts_and_exchanges_apdus() {
 
 #[tokio::test]
 async fn missing_project_selector_fails_closed() {
+    if !socket_support::unix_domain_sockets_supported("missing_project_selector_fails_closed") {
+        return;
+    }
+
     let root = temp_root("missing-project");
     let managed_paths = ManagedPaths::for_root(root.clone());
     let socket_path = managed_paths.service_socket_path.clone();
     let app = JcimApp::load_with_paths(managed_paths.clone()).expect("load app");
 
-    let server = tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
-    wait_for_socket(&managed_paths.service_socket_path).await;
+    let mut server =
+        tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
+    socket_support::wait_for_socket_or_server_exit(&managed_paths.service_socket_path, &mut server)
+        .await;
 
     let channel = connect_channel(&managed_paths.service_socket_path)
         .await
@@ -153,7 +174,7 @@ fn select_satochip_command() -> CommandApduFrame {
         p2: u32::from(command.p2),
         data: command.data.clone(),
         ne: command.ne.map(|value| value as u32),
-        encoding: jcim_api::v0_2::ApduEncoding::Short as i32,
+        encoding: jcim_api::v0_3::ApduEncoding::Short as i32,
         apdu_case: match command.apdu_case() {
             jcim_core::apdu::CommandApduCase::Case1 => CommandApduCase::CommandApduCase1 as i32,
             jcim_core::apdu::CommandApduCase::Case2Short => {
@@ -227,16 +248,6 @@ fn select_satochip_command() -> CommandApduFrame {
 
 fn satochip_project_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/satochip/workdir")
-}
-
-async fn wait_for_socket(socket_path: &Path) {
-    for _ in 0..40 {
-        if socket_path.exists() {
-            return;
-        }
-        sleep(Duration::from_millis(25)).await;
-    }
-    panic!("socket never appeared at {}", socket_path.display());
 }
 
 async fn connect_channel(socket_path: &Path) -> Result<Channel, tonic::transport::Error> {

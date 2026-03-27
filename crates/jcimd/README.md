@@ -1,6 +1,6 @@
 # jcimd
 
-`jcimd` is the JCIM 0.2 local gRPC control plane.
+`jcimd` is the JCIM 0.3 local gRPC control plane.
 
 It hosts one user-local Unix-domain-socket service that manages:
 

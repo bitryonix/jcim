@@ -2,7 +2,7 @@
 name = "jcim-cli"
 version.workspace = true
 edition.workspace = true
-description = "Task-oriented CLI for JCIM 0.2"
+description = "Task-oriented CLI for JCIM 0.3"
 readme = "README.md"
 
 [lints]
@@ -16,3 +16,7 @@ jcim-core = { path = "../jcim-core" }
 jcim-sdk = { path = "../jcim-sdk" }
 serde_json.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+jcim-app = { path = "../jcim-app" }
+jcimd = { path = "../jcimd" }

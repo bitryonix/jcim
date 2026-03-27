@@ -2,7 +2,7 @@
 
 ## Intent
 
-`jcim-app` is the product-facing application layer for JCIM 0.2.
+`jcim-app` is the product-facing application layer for JCIM 0.3.
 
 ## Responsibilities
 

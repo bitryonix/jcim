@@ -1,21 +1,8 @@
 syntax = "proto3";
 
-package jcim.v0_2;
+package jcim.v0_3;
 
 message Empty {}
-
-enum SimulationSourceKind {
-  SIMULATION_SOURCE_KIND_UNSPECIFIED = 0;
-  SIMULATION_SOURCE_KIND_PROJECT = 1;
-  SIMULATION_SOURCE_KIND_CAP = 2;
-}
-
-enum SimulationEngineMode {
-  SIMULATION_ENGINE_MODE_UNSPECIFIED = 0;
-  SIMULATION_ENGINE_MODE_NATIVE = 1;
-  SIMULATION_ENGINE_MODE_CONTAINER = 2;
-  SIMULATION_ENGINE_MODE_MANAGED_JAVA = 3;
-}
 
 enum SimulationStatus {
   SIMULATION_STATUS_UNSPECIFIED = 0;
@@ -269,23 +256,20 @@ message ProjectInfo {
 
 message SimulationInfo {
   string simulation_id = 1;
-  SimulationSourceKind source_kind = 2;
-  string project_id = 3;
-  string project_path = 4;
-  string cap_path = 5;
-  SimulationEngineMode engine_mode = 6;
-  SimulationStatus status = 7;
-  string reader_name = 8;
-  string health = 9;
-  AtrInfo atr = 10;
-  ProtocolParametersInfo active_protocol = 11;
-  IsoCapabilitiesInfo iso_capabilities = 12;
-  IsoSessionStateInfo session_state = 13;
-  uint32 package_count = 14;
-  uint32 applet_count = 15;
-  string package_name = 16;
-  string package_aid = 17;
-  repeated string recent_events = 18;
+  string project_id = 2;
+  string project_path = 3;
+  SimulationStatus status = 4;
+  string reader_name = 5;
+  string health = 6;
+  AtrInfo atr = 7;
+  ProtocolParametersInfo active_protocol = 8;
+  IsoCapabilitiesInfo iso_capabilities = 9;
+  IsoSessionStateInfo session_state = 10;
+  uint32 package_count = 11;
+  uint32 applet_count = 12;
+  string package_name = 13;
+  string package_aid = 14;
+  repeated string recent_events = 15;
 }
 
 message Overview {

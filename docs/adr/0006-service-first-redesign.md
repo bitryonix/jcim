@@ -1,8 +1,14 @@
-# ADR 0006: Service-First JCIM 0.2 Redesign
+# ADR 0006: Service-First Redesign Foundation
 
 ## Status
 
 Accepted
+
+## Historical note
+
+This ADR captures the service-first redesign foundation that landed during the 0.2 cycle and still
+anchors the current 0.3 baseline. Current contract and runtime details are recorded in ADRs 0007
+and 0008.
 
 ## Decision
 
