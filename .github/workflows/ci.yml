@@ -6,12 +6,19 @@ on:
 
 jobs:
   rust:
+    name: rust (${{ matrix.host }})
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
+        include:
+          - host: linux-x86_64
+            os: ubuntu-24.04
+          - host: linux-aarch64
+            os: ubuntu-24.04-arm
+          - host: macos-x86_64
+            os: macos-13
+          - host: macos-aarch64
+            os: macos-14
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +31,12 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo clippy --workspace --all-targets --all-features -- -W clippy::missing_docs_in_private_items
       - run: cargo test --workspace --all-features
-      - run: cargo test -p jcim-cli --test docs_smoke
-      - run: cargo test -p jcim-cli --test json_contract
+      - run: cargo test -p jcim-api --test descriptor_contract
+      - run: cargo test -p jcim-app --test characterization -- --test-threads=1
+      - run: cargo test -p jcim-cli --test docs_smoke -- --test-threads=1
+      - run: cargo test -p jcim-cli --test json_contract -- --test-threads=1
+      - run: cargo test -p jcim-sdk --test lifecycle -- --test-threads=1
+      - run: cargo test -p jcimd --test runtime_cleanup -- --test-threads=1
       - run: cargo test -p jcim-sdk --test docs_examples
       - run: cargo test --workspace --doc
       - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps

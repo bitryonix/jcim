@@ -26,10 +26,13 @@ Maintained host support:
 
 - macOS: zero-setup managed Java path
 - Linux: zero-setup managed Java path
-- Windows: unchanged and not part of the maintained zero-setup contract in this change set
+- other hosts: not part of the maintained zero-setup contract for JCIM 0.3
 
 The backend does not install CAP files directly. JCIM starts simulations from project-backed
 classes, runtime classpath entries, and simulator metadata.
+
+On hosts outside the maintained Linux/macOS `x86_64` and `aarch64` matrix, operators must use the
+explicit fallback path documented at `jcim system setup --java-bin /path/to/java`.
 
 This is the only maintained simulator bundle in the workspace.
 

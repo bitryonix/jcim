@@ -3,6 +3,10 @@
 //! # Why this exists
 //! JCIM 0.3 uses one user-local service as its control plane. This crate hosts the local gRPC
 //! server that exposes the task-oriented API consumed by the CLI and future desktop UI.
+//!
+//! # Verification
+//! Runtime ownership, stale-socket cleanup, and direct binary startup are guarded by
+//! `crates/jcimd/tests/runtime_cleanup.rs` and `crates/jcimd/tests/binary_smoke.rs`.
 #![allow(clippy::missing_docs_in_private_items)]
 #![forbid(unsafe_code)]
 

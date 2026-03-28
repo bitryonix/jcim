@@ -16,7 +16,7 @@ use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use jcim_app::{JcimApp, MockPhysicalCardAdapter};
-use jcim_config::project::{ManagedPaths, ServiceRuntimeRecord};
+use jcim_config::project::{ManagedPaths, ServiceRuntimeRecord, UserConfig};
 use jcim_sdk::{
     Aid, CardConnectionKind, CardConnectionLocator, CardConnectionTarget, CardInstallSource,
     JcimClient, ProjectRef, globalplatform, iso7816,
@@ -534,6 +534,103 @@ async fn sdk_connect_or_start_survives_repeated_service_restarts() {
         wait_for_path_absent(&managed_paths.runtime_metadata_path).await;
     }
 
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn sdk_connect_or_start_recovers_from_stale_runtime_metadata_and_surfaces_backend_start_failures()
+ {
+    let _guard = lifecycle_lock().lock().await;
+    if !socket_support::unix_domain_sockets_supported(
+        "sdk_connect_or_start_recovers_from_stale_runtime_metadata_and_surfaces_backend_start_failures",
+    ) {
+        return;
+    }
+
+    let root = temp_root("sdk-stale-runtime-and-backend-failure");
+    let managed_paths = ManagedPaths::for_root(root.clone());
+    std::fs::create_dir_all(&managed_paths.runtime_dir).expect("create runtime dir");
+    ServiceRuntimeRecord {
+        format_version: jcim_config::project::current_runtime_record_format_version(),
+        pid: 999_999,
+        socket_path: managed_paths.service_socket_path.clone(),
+        service_binary_path: PathBuf::from("/tmp/stale-jcimd"),
+        service_binary_fingerprint: "stale".to_string(),
+    }
+    .write_to_path(&managed_paths.runtime_metadata_path)
+    .expect("write stale runtime metadata");
+    UserConfig {
+        bundle_root: Some(root.join("missing-bundles")),
+        ..UserConfig::default()
+    }
+    .save_to_path(&managed_paths.config_path)
+    .expect("save user config");
+
+    let client = JcimClient::connect_or_start_with_paths(managed_paths.clone())
+        .await
+        .expect("connect or start");
+    let status = client.service_status().await.expect("service status");
+    assert!(status.running);
+    assert!(managed_paths.runtime_metadata_path.exists());
+    let runtime_record =
+        ServiceRuntimeRecord::load_if_present(&managed_paths.runtime_metadata_path)
+            .expect("load runtime metadata")
+            .expect("runtime metadata");
+    assert_ne!(runtime_record.pid, 999_999);
+    assert_eq!(
+        runtime_record.socket_path,
+        managed_paths.service_socket_path
+    );
+
+    stop_managed_daemon(&managed_paths).await;
+
+    UserConfig {
+        bundle_root: Some(root.join("missing-bundles")),
+        ..UserConfig::default()
+    }
+    .save_to_path(&managed_paths.config_path)
+    .expect("save failing user config");
+    let socket_path = managed_paths.service_socket_path.clone();
+    let app = JcimApp::load_with_paths(managed_paths.clone()).expect("load app");
+    let mut server =
+        tokio::spawn(async move { jcimd::serve_local_service(app, &socket_path).await });
+    socket_support::wait_for_socket_or_server_exit(&managed_paths.service_socket_path, &mut server)
+        .await;
+
+    let failing_client = JcimClient::connect_with_paths(managed_paths.clone())
+        .await
+        .expect("connect to manual daemon");
+    let error = failing_client
+        .start_simulation(ProjectRef::from_path(
+            satochip_support::satochip_project_root(),
+        ))
+        .await
+        .expect_err("invalid bundle root should fail simulation startup");
+    let message = error.to_string();
+    assert!(
+        message.contains("simulation `sim-"),
+        "unexpected error: {message}"
+    );
+    assert!(
+        message.contains("backend bundle manifest not found"),
+        "unexpected error: {message}"
+    );
+
+    let simulations = failing_client
+        .list_simulations()
+        .await
+        .expect("list simulations");
+    assert_eq!(simulations.len(), 1);
+    assert_eq!(simulations[0].status, jcim_sdk::SimulationStatus::Failed);
+
+    let status_after_failure = failing_client
+        .service_status()
+        .await
+        .expect("service status");
+    assert!(status_after_failure.running);
+
+    server.abort();
+    let _ = server.await;
     let _ = std::fs::remove_dir_all(root);
 }
 

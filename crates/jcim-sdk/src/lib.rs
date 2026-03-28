@@ -4,6 +4,10 @@
 //! JCIM is service-first, but Rust callers still need a supported API that covers project build,
 //! simulator control, CAP installation, and physical-card APDU workflows without hand-writing
 //! gRPC bootstrap and protobuf glue in every consumer.
+//!
+//! # Verification
+//! Published SDK examples are exercised by `crates/jcim-sdk/tests/docs_examples.rs`, and
+//! bootstrap/restart semantics are guarded by `crates/jcim-sdk/tests/lifecycle.rs`.
 
 #![forbid(unsafe_code)]
 

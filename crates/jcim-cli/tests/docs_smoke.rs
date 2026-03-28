@@ -72,6 +72,25 @@ fn quickstart_commands_from_docs_run_from_repo_root() {
 }
 
 #[test]
+fn unsupported_host_java_override_from_docs_is_persisted_in_config() {
+    if !socket_support::unix_domain_sockets_supported(
+        "unsupported_host_java_override_from_docs_is_persisted_in_config",
+    ) {
+        return;
+    }
+
+    let root = temp_root("docs-java-override");
+    let configured_java = "/path/to/java";
+
+    let setup = run_cli(&root, &["system", "setup", "--java-bin", configured_java]);
+    assert!(setup.contains("saved machine-local JCIM settings"));
+
+    let doctor = run_cli(&root, &["system", "doctor"]);
+    assert!(doctor.contains(&format!("Configured Java bin: {configured_java}")));
+    assert!(doctor.contains("Effective Java runtime:"));
+}
+
+#[test]
 fn satochip_cli_commands_from_docs_run_from_repo_root() {
     if !socket_support::unix_domain_sockets_supported(
         "satochip_cli_commands_from_docs_run_from_repo_root",

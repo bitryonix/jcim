@@ -8,8 +8,15 @@ mod socket_support;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use hyper_util::rt::TokioIo;
+use tokio::net::UnixStream;
+use tonic::transport::{Channel, Endpoint};
+use tower::service_fn;
+
+use jcim_api::v0_3::simulator_service_client::SimulatorServiceClient;
+use jcim_api::v0_3::{ProjectSelector, StartSimulationRequest};
 use jcim_app::JcimApp;
-use jcim_config::project::ManagedPaths;
+use jcim_config::project::{ManagedPaths, UserConfig};
 
 #[tokio::test]
 async fn stale_socket_is_replaced_and_runtime_files_are_cleaned_on_shutdown() {
@@ -220,6 +227,72 @@ async fn repeated_graceful_restarts_reuse_the_same_runtime_directory() {
     let _ = std::fs::remove_dir_all(root);
 }
 
+#[tokio::test]
+async fn backend_start_failure_leaves_daemon_recoverable_until_shutdown() {
+    if !socket_support::unix_domain_sockets_supported(
+        "backend_start_failure_leaves_daemon_recoverable_until_shutdown",
+    ) {
+        return;
+    }
+
+    let root = temp_root("backend-start-failure");
+    let managed_paths = ManagedPaths::for_root(root.clone());
+    managed_paths
+        .prepare_layout()
+        .expect("prepare managed layout");
+    UserConfig {
+        bundle_root: Some(root.join("missing-bundles")),
+        ..UserConfig::default()
+    }
+    .save_to_path(&managed_paths.config_path)
+    .expect("save user config");
+    let app = JcimApp::load_with_paths(managed_paths.clone()).expect("load app");
+    let socket_path = managed_paths.service_socket_path.clone();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+    let mut server = tokio::spawn(async move {
+        jcimd::serve_local_service_until_shutdown(app, &socket_path, async move {
+            let _ = shutdown_rx.await;
+        })
+        .await
+    });
+
+    wait_for_runtime_metadata_or_server_exit(&managed_paths.runtime_metadata_path, &mut server)
+        .await;
+    let channel = connect_channel(&managed_paths.service_socket_path)
+        .await
+        .expect("connect");
+    let error = SimulatorServiceClient::new(channel)
+        .start_simulation(StartSimulationRequest {
+            project: Some(ProjectSelector {
+                project_path: satochip_project_root().display().to_string(),
+                project_id: String::new(),
+            }),
+        })
+        .await
+        .expect_err("invalid bundle root should fail simulation startup");
+
+    assert_eq!(error.code(), tonic::Code::Unavailable);
+    assert!(
+        error
+            .message()
+            .contains("backend bundle manifest not found"),
+        "unexpected gRPC error: {error}"
+    );
+    assert!(managed_paths.service_socket_path.exists());
+    assert!(managed_paths.runtime_metadata_path.exists());
+    assert!(
+        !server.is_finished(),
+        "daemon should remain alive after managed backend startup failure"
+    );
+
+    let _ = shutdown_tx.send(());
+    server.await.expect("server task").expect("server result");
+
+    assert!(!managed_paths.service_socket_path.exists());
+    assert!(!managed_paths.runtime_metadata_path.exists());
+    let _ = std::fs::remove_dir_all(root);
+}
+
 fn temp_root(label: &str) -> PathBuf {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -287,4 +360,21 @@ async fn wait_for_replaced_runtime_metadata(
         runtime_metadata_path.display(),
         stale_pid
     );
+}
+
+async fn connect_channel(
+    socket_path: &std::path::Path,
+) -> Result<Channel, tonic::transport::Error> {
+    let socket_path = socket_path.to_path_buf();
+    Endpoint::try_from("http://[::]:50051")
+        .expect("endpoint")
+        .connect_with_connector(service_fn(move |_| {
+            let socket_path = socket_path.clone();
+            async move { UnixStream::connect(socket_path).await.map(TokioIo::new) }
+        }))
+        .await
+}
+
+fn satochip_project_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/satochip/workdir")
 }

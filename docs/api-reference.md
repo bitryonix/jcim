@@ -2,6 +2,17 @@
 
 JCIM 0.3 exposes its sole maintained local gRPC API over a Unix-domain socket.
 
+Maintained contract rules:
+
+- protobuf package: `jcim.v0_3`
+- CLI JSON schema above the service boundary: `jcim-cli.v2`
+- managed files used around the service: `jcim.toml`, `config.toml`, `projects.toml`,
+  `jcimd.runtime.toml`
+- supported maintained hosts: Linux/macOS on `x86_64` and `aarch64`
+- unsupported-host Java fallback remains explicit: `jcim system setup --java-bin /path/to/java`
+- GP key material is env-derived and must not appear in logs, JSON errors, or persisted managed
+  files
+
 The canonical Rust consumer of this contract is:
 
 - [`crates/jcim-sdk`](../crates/jcim-sdk/README.md)
@@ -72,7 +83,15 @@ underlying gRPC contract.
 The protobuf source lives at:
 
 - [`crates/jcim-api/proto/jcim/v0_3/service.proto`](../crates/jcim-api/proto/jcim/v0_3/service.proto)
+- descriptor set constant: `jcim_api::JCIM_V0_3_DESCRIPTOR_SET`
+- compatibility test: [`crates/jcim-api/tests/descriptor_contract.rs`](../crates/jcim-api/tests/descriptor_contract.rs)
 - Migration notes: [`migration-0.3.md`](migration-0.3.md)
+
+The descriptor set is exported so CI can assert package name, service membership, and selected
+field numbers without maintaining a separate hand-written schema snapshot.
+
+For JCIM 0.3, that protobuf source intentionally remains one governed file rather than being split
+across multiple proto files.
 
 ## Notable request and response shapes
 

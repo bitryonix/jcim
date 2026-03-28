@@ -1,11 +1,10 @@
 //! Project and machine-local path helpers.
 #![allow(clippy::missing_docs_in_private_items)]
 
+use crate::managed_files::write_regular_file_atomic;
+use jcim_core::error::{JcimError, Result};
 use std::env;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use jcim_core::error::{JcimError, Result};
 
 /// Canonical manifest file name.
 pub const PROJECT_MANIFEST_NAME: &str = "jcim.toml";
@@ -314,21 +313,8 @@ fn migrate_legacy_file_if_missing(source: &Path, destination: &Path) -> Result<(
     }
 
     let contents = std::fs::read(source)?;
-    if let Some(parent) = destination.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let temp_path = destination.with_extension(format!("migrate-{}", unique_suffix()));
-    std::fs::write(&temp_path, contents)?;
-    std::fs::rename(&temp_path, destination)?;
+    write_regular_file_atomic(destination, &contents, "managed migration target")?;
     Ok(())
-}
-
-fn unique_suffix() -> String {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
-        .to_string()
 }
 
 #[cfg(test)]

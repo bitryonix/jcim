@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use jcim_config::managed_files::write_regular_file_atomic;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 
@@ -35,16 +36,10 @@ impl ProjectRegistry {
 
     /// Persist the registry to disk.
     pub(crate) fn save_to_path(&self, path: &Path) -> Result<()> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        std::fs::write(
-            path,
-            toml::to_string_pretty(self).map_err(|error| {
-                JcimError::Unsupported(format!("unable to encode project registry: {error}"))
-            })?,
-        )?;
-        Ok(())
+        let encoded = toml::to_string_pretty(self).map_err(|error| {
+            JcimError::Unsupported(format!("unable to encode project registry: {error}"))
+        })?;
+        write_regular_file_atomic(path, encoded.as_bytes(), "project registry")
     }
 
     /// Upsert one project root and return its stable registry record.
@@ -97,4 +92,67 @@ pub(crate) fn project_id_for_path(project_root: &Path) -> String {
     hasher.update(project_root.display().to_string().as_bytes());
     let digest = hasher.finalize();
     hex::encode(&digest[..6])
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::{ProjectRegistry, RegisteredProject};
+
+    #[test]
+    fn registry_save_replaces_existing_contents() {
+        let root = temp_root("replace");
+        let path = root.join("projects.toml");
+        let first = ProjectRegistry {
+            projects: vec![RegisteredProject {
+                project_id: "first".to_string(),
+                project_path: PathBuf::from("/tmp/first"),
+            }],
+        };
+        let second = ProjectRegistry {
+            projects: vec![RegisteredProject {
+                project_id: "second".to_string(),
+                project_path: PathBuf::from("/tmp/second"),
+            }],
+        };
+
+        first.save_to_path(&path).expect("save first registry");
+        second.save_to_path(&path).expect("replace registry");
+
+        let saved = ProjectRegistry::load_or_default(&path).expect("load registry");
+        assert_eq!(saved, second);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn registry_save_rejects_symlink_destinations() {
+        let root = temp_root("symlink");
+        let target = root.join("target.toml");
+        let path = root.join("projects.toml");
+        std::fs::create_dir_all(&root).expect("create root");
+        std::fs::write(&target, "target").expect("write target");
+        std::os::unix::fs::symlink(&target, &path).expect("symlink");
+
+        let error = ProjectRegistry::default()
+            .save_to_path(&path)
+            .expect_err("symlink should fail closed");
+        assert!(
+            error
+                .to_string()
+                .contains("refusing to overwrite symlinked")
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    fn temp_root(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        PathBuf::from("/tmp").join(format!("jcim-registry-{label}-{unique:x}"))
+    }
 }

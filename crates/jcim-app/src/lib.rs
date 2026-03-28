@@ -9,6 +9,10 @@
 //! `jcim-app` resolves projects, manages the local project registry, supervises project-backed
 //! managed simulations, coordinates build-on-demand flows, exposes physical-card operations, and
 //! persists machine-local configuration.
+//!
+//! # Verification
+//! Maintained application behavior is characterized at the façade boundary in
+//! `crates/jcim-app/tests/characterization.rs`.
 
 #![forbid(unsafe_code)]
 

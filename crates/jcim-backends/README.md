@@ -10,7 +10,7 @@ It owns:
 - backend startup handshake and health probing
 - the backend actor handle used by the local service and embedded callers
 
-Typical use:
+Illustrative low-level use:
 
 ```rust
 use jcim_backends::backend::BackendHandle;

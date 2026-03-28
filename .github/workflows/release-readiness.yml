@@ -22,8 +22,12 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --all-features
-      - run: cargo test -p jcim-cli --test docs_smoke
-      - run: cargo test -p jcim-cli --test json_contract
+      - run: cargo test -p jcim-api --test descriptor_contract
+      - run: cargo test -p jcim-app --test characterization -- --test-threads=1
+      - run: cargo test -p jcim-cli --test docs_smoke -- --test-threads=1
+      - run: cargo test -p jcim-cli --test json_contract -- --test-threads=1
+      - run: cargo test -p jcim-sdk --test lifecycle -- --test-threads=1
+      - run: cargo test -p jcimd --test runtime_cleanup -- --test-threads=1
       - run: cargo test -p jcim-sdk --test docs_examples
       - run: cargo test --workspace --doc
       - run: cargo test -p jcim-config --test third_party_governance

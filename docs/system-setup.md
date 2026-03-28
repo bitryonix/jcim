@@ -6,6 +6,15 @@ From the repository checkout, persist machine-local JCIM settings with:
 cargo run -p jcim-cli -- system setup
 ```
 
+Maintained contract rules:
+
+- local service package: `jcim.v0_3`
+- CLI JSON schema: `jcim-cli.v2`
+- managed files: `jcim.toml`, `config.toml`, `projects.toml`, `jcimd.runtime.toml`
+- supported maintained hosts: Linux/macOS on `x86_64` and `aarch64`
+- unsupported-host Java fallback remains explicit: `jcim system setup --java-bin /path/to/java`
+- GP key material stays env-derived and must not be written into managed files or logs
+
 The managed JCIM layout is:
 
 - macOS:
@@ -38,7 +47,7 @@ cargo run -p jcim-cli -- system service status
 If you have installed the CLI binary separately, replace the `cargo run -p jcim-cli --` prefix
 with `jcim`.
 
-On macOS and Linux, JCIM prefers the repository-bundled Temurin 11 runtime for:
+On supported macOS and Linux hosts, JCIM uses the repository-bundled Temurin 11 runtime for:
 
 - Java Card builds
 - managed simulator startup
@@ -65,8 +74,10 @@ files untouched for recovery.
 
 Migration details for the 0.3 baseline live in [`migration-0.3.md`](migration-0.3.md).
 
-`jcim system setup --java-bin /path/to/java` is now an override for unsupported hosts, local
-policy, or debugging against a different Java runtime.
+`jcim system setup --java-bin /path/to/java` persists the unsupported-host fallback Java path in
+`config.toml`. On supported macOS and Linux hosts, `jcim system doctor` still reports the bundled
+Temurin runtime as the effective Java runtime while showing the configured fallback path
+separately.
 
 The maintained simulator path is project-backed:
 

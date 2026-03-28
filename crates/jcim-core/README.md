@@ -16,7 +16,7 @@ Further reading:
 - Architecture: `ARCHITECTURE.md`
 - Workspace-level tradeoffs: `../../LIMITATIONS.md` and `../../DESIGNDECISIONS.md`
 
-Typical use:
+Illustrative low-level use:
 
 ```rust
 use jcim_core::model::{CardProfile, CardProfileId};

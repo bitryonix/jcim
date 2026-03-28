@@ -110,6 +110,42 @@ fn json_failures_go_to_stderr_with_the_error_envelope() {
 }
 
 #[test]
+fn json_success_and_error_flows_remain_stable_across_repeated_daemon_bootstrap() {
+    if !socket_support::unix_domain_sockets_supported(
+        "json_success_and_error_flows_remain_stable_across_repeated_daemon_bootstrap",
+    ) {
+        return;
+    }
+
+    let root = temp_root("jb");
+    let missing_project = root.join("missing-project");
+
+    let initial_status = parse_json(
+        "initial sim status",
+        &run_cli(&root, &["--json", "sim", "status"]).stdout,
+    );
+    assert_kind(&initial_status, "simulation.list");
+
+    let failed_build = parse_json(
+        "failed build",
+        &run_cli_failure(
+            &root,
+            &["--json", "build", "--project", &path_arg(&missing_project)],
+        )
+        .stderr,
+    );
+    assert_kind(&failed_build, "error");
+
+    let recovered_status = parse_json(
+        "recovered sim status",
+        &run_cli(&root, &["--json", "sim", "status"]).stdout,
+    );
+    assert_kind(&recovered_status, "simulation.list");
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn project_build_system_and_simulation_json_commands_cover_the_managed_surface() {
     if !socket_support::unix_domain_sockets_supported(
         "project_build_system_and_simulation_json_commands_cover_the_managed_surface",

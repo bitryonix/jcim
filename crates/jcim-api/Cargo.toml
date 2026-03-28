@@ -12,5 +12,8 @@ workspace = true
 prost.workspace = true
 tonic.workspace = true
 
+[dev-dependencies]
+prost-types.workspace = true
+
 [build-dependencies]
 tonic-build.workspace = true

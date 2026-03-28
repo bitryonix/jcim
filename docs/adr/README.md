@@ -8,3 +8,4 @@
 - [0006: Service-First Redesign Foundation](0006-service-first-redesign.md) (historical foundation for the current 0.3 baseline)
 - [0007: JCIM 0.3 Public Contract Baseline](0007-public-contract-baseline.md)
 - [0008: Managed Paths And Runtime Ownership](0008-managed-paths-runtime-ownership.md)
+- [0009: App State Store Ownership](0009-app-state-store-ownership.md)

@@ -11,11 +11,15 @@ It is service-first:
 - it re-exports typed ISO/IEC 7816 and GlobalPlatform command helpers from `jcim-core`
 - it keeps raw hex and raw transport details at the edges
 
-On macOS and Linux, the maintained simulator/build/helper path uses the repository-bundled Temurin
-11 runtime. No Docker, container command, host Java install, or `JAVA_HOME` is required for the
-managed simulator path.
+On supported macOS and Linux hosts, the maintained simulator/build/helper path uses the
+repository-bundled Temurin 11 runtime. No Docker, container command, host Java install, or
+`JAVA_HOME` is required for the managed simulator path.
 
-Typical flow:
+Illustrative API sketch:
+
+The snippets below are API-oriented examples. The maintained executable SDK examples are the
+`satochip_lifecycle` and `satochip_wallet` binaries plus
+`crates/jcim-sdk/tests/docs_examples.rs`.
 
 ```rust
 use jcim_sdk::{CardConnectionTarget, CommandApdu, JcimClient, ProjectRef};
@@ -92,8 +96,8 @@ Examples:
   - build the vendored Satochip project, open a unified `CardConnection`, establish the Satochip
     applet secure channel, create a wallet, derive a BIP32 key, and sign a demo transaction hash
 - `cargo run -p jcim-sdk --example satochip_wallet -- --reader "Your Reader Name"`
-  - install the built CAP onto a real reader target first, then run the same wallet/signing flow on
-    card; if install requires authenticated GP administration, set the matching `JCIM_GP_*`
-    environment variables first
+  - hardware-gated reader-backed flow; install the built CAP onto a real reader target first, then
+    run the same wallet/signing flow on card; if install requires authenticated GP administration,
+    set the matching `JCIM_GP_*` environment variables first
 
 These example commands are written to be run from the workspace root.

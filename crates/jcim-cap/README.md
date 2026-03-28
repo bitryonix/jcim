@@ -9,7 +9,7 @@ It owns:
 - package and applet metadata extraction
 - import and export validation
 
-Typical use:
+Illustrative low-level use:
 
 ```rust
 use jcim_cap::export::ExportRegistry;

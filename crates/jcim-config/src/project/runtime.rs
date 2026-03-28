@@ -1,11 +1,11 @@
 //! Local-service runtime metadata and safe cleanup helpers.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use jcim_core::error::{JcimError, Result};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+
+use crate::managed_files::write_regular_file_atomic;
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
@@ -46,19 +46,12 @@ impl ServiceRuntimeRecord {
 
     /// Persist one runtime record using an atomic temp-file-plus-rename write.
     pub fn write_to_path(&self, path: &Path) -> Result<()> {
-        validate_runtime_file_destination(path)?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let temp_path = path.with_extension(format!("tmp-{}", unique_suffix()));
         let encoded = toml::to_string_pretty(self).map_err(|error| {
             JcimError::Unsupported(format!(
                 "unable to encode local-service runtime record: {error}"
             ))
         })?;
-        std::fs::write(&temp_path, encoded)?;
-        std::fs::rename(&temp_path, path)?;
-        Ok(())
+        write_regular_file_atomic(path, encoded.as_bytes(), "local-service runtime metadata")
     }
 }
 
@@ -89,27 +82,6 @@ pub fn remove_owned_socket_if_present(socket_path: &Path, owner_dir: &Path) -> R
 /// Remove one stale runtime metadata file after validating its type and ownership.
 pub fn remove_owned_runtime_file_if_present(path: &Path, owner_dir: &Path) -> Result<()> {
     remove_owned_path_if_present(path, owner_dir, RuntimePathKind::RegularFile)
-}
-
-fn validate_runtime_file_destination(path: &Path) -> Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-    let metadata = std::fs::symlink_metadata(path)?;
-    let file_type = metadata.file_type();
-    if file_type.is_symlink() {
-        return Err(JcimError::Unsupported(format!(
-            "refusing to overwrite symlinked runtime metadata path {}",
-            path.display()
-        )));
-    }
-    if !file_type.is_file() {
-        return Err(JcimError::Unsupported(format!(
-            "refusing to overwrite non-file runtime metadata path {}",
-            path.display()
-        )));
-    }
-    Ok(())
 }
 
 fn remove_owned_path_if_present(
@@ -168,14 +140,6 @@ fn validate_runtime_path(
         )));
     }
     Ok(())
-}
-
-fn unique_suffix() -> String {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
-        .to_string()
 }
 
 #[derive(Clone, Copy)]

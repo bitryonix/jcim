@@ -736,6 +736,7 @@ name = "jcim-api"
 version = "0.3.0"
 dependencies = [
  "prost",
+ "prost-types",
  "tonic",
  "tonic-build",
 ]

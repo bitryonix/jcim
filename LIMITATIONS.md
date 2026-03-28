@@ -1,4 +1,4 @@
-# Limitations And Next Steps
+# Limitations And Follow-Up
 
 ## Current limitations
 
@@ -22,7 +22,7 @@
   dependency, license, and bundled-asset governance, but packaging/publishing automation is still
   intentionally out of scope.
 
-## Near-term next steps
+## Post-0.3 follow-up ideas
 
 - Add deeper crash-leftover, partial-startup, and repeated cross-process recovery coverage across
   the managed macOS and Linux path.

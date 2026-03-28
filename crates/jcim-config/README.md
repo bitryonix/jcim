@@ -15,7 +15,7 @@ It includes:
 - hardware overrides
 - TOML loading helpers
 
-Typical low-level use:
+Illustrative low-level use:
 
 ```rust
 use jcim_config::config::RuntimeConfig;
@@ -24,7 +24,7 @@ let config = RuntimeConfig::default();
 assert_eq!(config.backend.kind, jcim_core::model::BackendKind::Simulator);
 ```
 
-Workflow-first use:
+Illustrative workflow-first use:
 
 ```rust
 use jcim_config::project::ProjectConfig;

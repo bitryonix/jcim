@@ -5,7 +5,7 @@ This example is a source-backed JCIM 0.3 simulator demo built from vendored Sato
 ## What it demonstrates
 
 - native Java Card source build to CAP
-- zero-setup simulator startup from the project manifest on macOS and Linux
+- zero-setup simulator startup from the project manifest on supported macOS and Linux hosts
 - raw APDU exchange against the running simulation
 - a Rust wallet flow that selects Satochip, opens the applet secure channel, creates a wallet,
   derives a BIP32 key, and signs a demo transaction hash
@@ -43,7 +43,7 @@ cargo run -p jcim-cli -- sim reset
 cargo run -p jcim-cli -- sim stop
 ```
 
-Install the same built CAP onto a physical card:
+Hardware-gated physical-card install:
 
 ```sh
 cargo run -p jcim-cli -- card install --project examples/satochip/workdir --reader "Your Reader Name"
@@ -61,7 +61,7 @@ Run the Rust wallet/bootstrap/signing demo against a fresh virtual Satochip:
 cargo run -p jcim-sdk --example satochip_wallet
 ```
 
-Run the same wallet/bootstrap/signing demo against a physical reader after installing the built CAP:
+Hardware-gated reader-backed wallet demo after installing the built CAP:
 
 ```sh
 cargo run -p jcim-sdk --example satochip_wallet -- --reader "Your Reader Name"

@@ -11,5 +11,6 @@
 //! machine-local configuration layers above it.
 
 pub mod config;
+pub mod managed_files;
 pub mod prelude;
 pub mod project;

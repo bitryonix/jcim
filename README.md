@@ -10,6 +10,16 @@ JCIM 0.3 is a local Java Card simulator workbench built around one user-local gR
 transport-neutral application core, a managed class-backed simulator pipeline, a canonical Rust
 lifecycle API, and a thin task-oriented CLI.
 
+## Compatibility baseline
+
+- protobuf package: `jcim.v0_3`
+- CLI JSON schema: `jcim-cli.v2`
+- managed files: `jcim.toml`, `config.toml`, `projects.toml`, `jcimd.runtime.toml`
+- supported maintained hosts: Linux/macOS on `x86_64` and `aarch64`
+- unsupported-host Java fallback: `jcim system setup --java-bin /path/to/java`
+- GP key material must come from environment variables, and JCIM must not log those values or
+  snapshot them into JSON errors
+
 ## Product shape
 
 - `jcimd`: one local gRPC control-plane service over a Unix-domain socket
@@ -74,7 +84,7 @@ Use the raw APDU escape hatch only when you really need exact bytes:
 cargo run -p jcim-cli -- sim apdu 00A4040006F0000000010100
 ```
 
-When you have a connected PC/SC reader and card, inspect hardware with:
+Hardware-gated physical-card commands require a real PC/SC reader and present card:
 
 ```sh
 cargo run -p jcim-cli -- card readers
@@ -144,9 +154,9 @@ Machine-local settings live outside the project under a split managed layout:
 ## Current posture
 
 - The maintained simulator path is project-backed, bundled, and class-backed through `jcardsim`.
-- On macOS and Linux, JCIM uses a bundled Temurin 11 runtime for builds, simulator startup, and
-  bundled helper jars. No Docker, `JCIM_SIMULATOR_CONTAINER_CMD`, or host Java install is required
-  for the maintained path.
+- On supported macOS and Linux hosts, JCIM uses a bundled Temurin 11 runtime for builds,
+  simulator startup, and bundled helper jars. No Docker, `JCIM_SIMULATOR_CONTAINER_CMD`, or host
+  Java install is required for the maintained path.
 - Java source support means: build the project, then start the managed simulator from the emitted
   classes, runtime classpath, and simulator metadata.
 - CAP artifacts remain first-class build outputs for card install, artifact inspection, and
@@ -157,15 +167,19 @@ Machine-local settings live outside the project under a split managed layout:
   commands still depend on the card accepting the caller's authenticated state or secure channel.
 - CLI `--json` is a versioned automation surface for maintained task-oriented commands. Success and
   error envelopes now carry `schema_version = "jcim-cli.v2"` plus a stable `kind` marker.
+- The maintained local service contract stays in the single governed file
+  `crates/jcim-api/proto/jcim/v0_3/service.proto` for the 0.3 cycle.
 - Expert simulator control paths such as `jcim sim gp ...` remain available, but they are not part
   of the current automation compatibility guarantee.
 
 ## Verification gates
 
-- Pull requests run the Rust correctness matrix on Linux and macOS plus an Ubuntu supply-chain job
-  that executes `cargo audit` and `cargo deny check`.
+- Pull requests run the Rust correctness matrix on Linux and macOS across the supported `x86_64`
+  and `aarch64` host tuples, plus an Ubuntu supply-chain job that executes `cargo audit` and
+  `cargo deny check`.
 - Pull requests also run the targeted docs/contract/governance smoke tests directly so published
-  command snippets, JSON envelopes, and bundled-asset manifests stay review-blocking.
+  command snippets, protobuf descriptors, `jcim-app` behavior, JSON envelopes, and bundled-asset
+  manifests stay review-blocking.
 - Release preflight runs on manual dispatch and version tags from a clean Cargo target directory
   and reruns fmt, clippy, tests, rustdoc, `cargo audit`, `cargo deny check`, and the targeted
   third-party governance tests.
@@ -184,6 +198,14 @@ Machine-local settings live outside the project under a split managed layout:
 - API reference: [`docs/api-reference.md`](docs/api-reference.md)
 - CLI reference: [`docs/cli-reference.md`](docs/cli-reference.md)
 - System setup: [`docs/system-setup.md`](docs/system-setup.md)
+- Improvement roadmap: [`docs/improvement-roadmap.md`](docs/improvement-roadmap.md)
+- Architecture overview: [`docs/architecture-overview.md`](docs/architecture-overview.md)
+- Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Security policy: [`SECURITY.md`](SECURITY.md)
+- Daemon troubleshooting: [`docs/troubleshooting-daemon.md`](docs/troubleshooting-daemon.md)
+- Third-party refresh process: [`docs/third-party-refresh.md`](docs/third-party-refresh.md)
+- Release/versioning notes: [`docs/release-versioning.md`](docs/release-versioning.md)
+- Publish review: [`docs/publish-review.md`](docs/publish-review.md)
 - Satochip example: [`examples/satochip/README.md`](examples/satochip/README.md)
 - Rust SDK: [`crates/jcim-sdk/README.md`](crates/jcim-sdk/README.md)
 - Limitations: [`LIMITATIONS.md`](LIMITATIONS.md)

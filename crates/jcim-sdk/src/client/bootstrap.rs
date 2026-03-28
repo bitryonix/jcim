@@ -47,19 +47,20 @@ impl JcimClient {
 
     /// Connect to the local JCIM service, starting it if needed, using explicit managed paths.
     pub async fn connect_or_start_with_paths(managed_paths: ManagedPaths) -> Result<Self> {
-        if let Ok(channel) = connect_channel(&managed_paths.service_socket_path).await {
-            let client = Self {
-                managed_paths: managed_paths.clone(),
-                channel,
+        let restart_notes =
+            if let Ok(channel) = connect_channel(&managed_paths.service_socket_path).await {
+                let client = Self {
+                    managed_paths: managed_paths.clone(),
+                    channel,
+                };
+                if client.connected_service_matches_current_binary().await? {
+                    return Ok(client);
+                }
+                drop(client);
+                prepare_service_restart(&managed_paths).await?
+            } else {
+                prepare_service_restart(&managed_paths).await?
             };
-            if client.connected_service_matches_current_binary().await? {
-                return Ok(client);
-            }
-            drop(client);
-            prepare_service_restart(&managed_paths).await?;
-        } else {
-            prepare_service_restart(&managed_paths).await?;
-        }
 
         let mut service = spawn_service(&managed_paths)?;
         for _ in 0..40 {
@@ -73,22 +74,24 @@ impl JcimClient {
                 JcimSdkError::Bootstrap(format!("unable to observe jcimd startup status: {error}"))
             })? {
                 let log_tail = read_bootstrap_log_tail(&service.stderr_log_path);
+                let restart_context = restart_notes.describe();
                 return Err(JcimSdkError::Bootstrap(match log_tail {
                     Some(log_tail) => format!(
-                        "jcimd exited during startup with status {status}. stderr from {}:\n{log_tail}",
-                        service.stderr_log_path.display()
+                        "jcimd exited during startup with status {status}; {restart_context}. stderr from {}:\n{log_tail}",
+                        service.stderr_log_path.display(),
                     ),
                     None => format!(
-                        "jcimd exited during startup with status {status}. no stderr was captured at {}",
-                        service.stderr_log_path.display()
+                        "jcimd exited during startup with status {status}; {restart_context}. no stderr was captured at {}",
+                        service.stderr_log_path.display(),
                     ),
                 }));
             }
             sleep(Duration::from_millis(100)).await;
         }
 
+        let restart_context = restart_notes.describe();
         Err(JcimSdkError::Bootstrap(format!(
-            "unable to connect to the JCIM local service at {} after startup; stderr log: {}",
+            "jcimd started but did not accept connections on {} within 4000 ms; {restart_context}. stderr log: {}",
             managed_paths.service_socket_path.display(),
             service.stderr_log_path.display()
         )))
@@ -169,7 +172,8 @@ fn read_bootstrap_log_tail(path: &Path) -> Option<String> {
     }
 }
 
-async fn prepare_service_restart(managed_paths: &ManagedPaths) -> Result<()> {
+async fn prepare_service_restart(managed_paths: &ManagedPaths) -> Result<RestartPreparation> {
+    let mut actions = Vec::new();
     let runtime_owner_dir = runtime_owner_dir(managed_paths);
     if let Some(record) =
         validated_runtime_record(&managed_paths.runtime_metadata_path, &runtime_owner_dir)?
@@ -179,11 +183,20 @@ async fn prepare_service_restart(managed_paths: &ManagedPaths) -> Result<()> {
             && recorded_process_matches_binary(&record)
         {
             terminate_recorded_service(&record).await?;
+            actions.push(format!(
+                "stopped recorded daemon pid {} from {}",
+                record.pid,
+                record.service_binary_path.display()
+            ));
         }
         remove_owned_runtime_file_if_present(
             &managed_paths.runtime_metadata_path,
             &runtime_owner_dir,
         )?;
+        actions.push(format!(
+            "removed stale runtime metadata {}",
+            managed_paths.runtime_metadata_path.display()
+        ));
     }
 
     if managed_paths.service_socket_path.exists() {
@@ -200,8 +213,12 @@ async fn prepare_service_restart(managed_paths: &ManagedPaths) -> Result<()> {
             &managed_paths.service_socket_path,
             &managed_paths.runtime_dir,
         )?;
+        actions.push(format!(
+            "removed stale owned socket {}",
+            managed_paths.service_socket_path.display()
+        ));
     }
-    Ok(())
+    Ok(RestartPreparation { actions })
 }
 
 fn validated_runtime_record(
@@ -415,13 +432,30 @@ fn binary_candidates(current_exe: &Path, name: &str) -> Vec<PathBuf> {
     candidates
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct RestartPreparation {
+    actions: Vec<String>,
+}
+
+impl RestartPreparation {
+    fn describe(&self) -> String {
+        if self.actions.is_empty() {
+            "no stale runtime artifacts required cleanup".to_string()
+        } else {
+            format!("restart preparation {}", self.actions.join("; "))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
 
     use crate::types::ServiceStatusSummary;
 
-    use super::{ServiceBinaryIdentity, binary_candidates, service_status_matches_binary};
+    use super::{
+        RestartPreparation, ServiceBinaryIdentity, binary_candidates, service_status_matches_binary,
+    };
 
     #[test]
     fn binary_candidates_check_parent_and_grandparent() {
@@ -459,5 +493,27 @@ mod tests {
             &identity
         ));
         assert!(!service_status_matches_binary(&wrong_path, &identity));
+    }
+
+    #[test]
+    fn restart_preparation_description_is_explicit() {
+        let empty = RestartPreparation::default();
+        let cleaned = RestartPreparation {
+            actions: vec![
+                "removed stale runtime metadata /tmp/jcimd.runtime.toml".to_string(),
+                "removed stale owned socket /tmp/jcimd.sock".to_string(),
+            ],
+        };
+
+        assert_eq!(
+            empty.describe(),
+            "no stale runtime artifacts required cleanup"
+        );
+        assert!(
+            cleaned
+                .describe()
+                .contains("removed stale runtime metadata")
+        );
+        assert!(cleaned.describe().contains("removed stale owned socket"));
     }
 }

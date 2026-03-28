@@ -8,6 +8,15 @@ cargo run -p jcim-cli -- <command>...
 
 If you have installed the binary separately, replace that prefix with `jcim`.
 
+Maintained contract rules:
+
+- CLI JSON schema: `jcim-cli.v2`
+- service package beneath the CLI: `jcim.v0_3`
+- managed files: `jcim.toml`, `config.toml`, `projects.toml`, `jcimd.runtime.toml`
+- supported maintained hosts: Linux/macOS on `x86_64` and `aarch64`
+- unsupported-host Java fallback remains explicit: `jcim system setup --java-bin /path/to/java`
+- GP key material is env-derived and must not appear in human-readable logs or JSON error output
+
 ## Maintained path
 
 The maintained simulator path is:
@@ -85,9 +94,32 @@ Raw APDU passthrough remains available as the expert escape hatch:
   needed.
 - Hardware install or GP-auth workflows may also require `JCIM_GP_DEFAULT_KEYSET` plus matching
   `JCIM_GP_<NAME>_{MODE,ENC,MAC,DEK}` environment variables.
+- Published reader-backed examples are hardware-gated. The default deterministic smoke suite keeps
+  them opt-in and only exercises them when `JCIM_HARDWARE_TESTS=1`.
 - `jcim sim start --project <path>` is the maintained simulator entrypoint.
 - `jcim sim gp ...` remains available as an expert surface for simulator backends that expose a
   compatible security domain, but it is not the default simulator lifecycle path and is not part
   of the current stable JSON compatibility promise.
 - `jcim card iso ...` and `jcim card gp ...` report observational real-card state; they do not
   pretend to know hidden on-card state JCIM did not directly observe.
+
+Example success envelope:
+
+```json
+{
+  "schema_version": "jcim-cli.v2",
+  "kind": "system.service_status",
+  "running": false,
+  "socket_path": "/path/to/jcimd.sock"
+}
+```
+
+Example error envelope:
+
+```json
+{
+  "schema_version": "jcim-cli.v2",
+  "kind": "error",
+  "message": "no artifact metadata found for this project; run `jcim build` first"
+}
+```
