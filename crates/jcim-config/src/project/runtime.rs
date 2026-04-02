@@ -1,5 +1,4 @@
 //! Local-service runtime metadata and safe cleanup helpers.
-#![allow(clippy::missing_docs_in_private_items)]
 
 use jcim_core::error::{JcimError, Result};
 use serde::{Deserialize, Serialize};
@@ -84,6 +83,7 @@ pub fn remove_owned_runtime_file_if_present(path: &Path, owner_dir: &Path) -> Re
     remove_owned_path_if_present(path, owner_dir, RuntimePathKind::RegularFile)
 }
 
+/// Remove one runtime artifact only after validating its ownership and expected path kind.
 fn remove_owned_path_if_present(
     path: &Path,
     owner_dir: &Path,
@@ -100,6 +100,7 @@ fn remove_owned_path_if_present(
     }
 }
 
+/// Validate that one runtime artifact has the expected type and owner before removal.
 fn validate_runtime_path(
     path: &Path,
     owner_dir: &Path,
@@ -143,12 +144,16 @@ fn validate_runtime_path(
 }
 
 #[derive(Clone, Copy)]
+/// Expected runtime artifact type used by the safe-removal helpers.
 enum RuntimePathKind {
+    /// Unix-domain socket path owned by the daemon runtime directory.
     Socket,
+    /// Regular-file runtime metadata path owned by the daemon runtime directory.
     RegularFile,
 }
 
 impl RuntimePathKind {
+    /// Return the human-readable label used in safe-removal error messages.
     fn label(self) -> &'static str {
         match self {
             Self::Socket => "socket",

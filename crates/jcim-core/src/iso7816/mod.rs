@@ -1,9 +1,9 @@
 //! ISO/IEC 7816 card, session, command, and status models.
-#![allow(missing_docs)]
-#![allow(clippy::missing_docs_in_private_items)]
 // This module intentionally centralizes a large standards-shaped public surface.
 // We keep top-level docs high-signal here and avoid repeating line-by-line field docs on every
 // typed command container introduced by the ISO-first redesign.
+#![allow(missing_docs)]
+#![allow(clippy::missing_docs_in_private_items)]
 
 mod atr;
 mod commands;

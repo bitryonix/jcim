@@ -26,6 +26,7 @@ use jcim_core::iso7816;
 
 #[tokio::test]
 async fn service_builds_the_source_backed_satochip_example() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "service_builds_the_source_backed_satochip_example",
     ) {
@@ -67,6 +68,7 @@ async fn service_builds_the_source_backed_satochip_example() {
 
 #[tokio::test]
 async fn project_backed_simulation_starts_and_exchanges_apdus() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "project_backed_simulation_starts_and_exchanges_apdus",
     ) {
@@ -130,6 +132,7 @@ async fn project_backed_simulation_starts_and_exchanges_apdus() {
 
 #[tokio::test]
 async fn missing_project_selector_fails_closed() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported("missing_project_selector_fails_closed") {
         return;
     }

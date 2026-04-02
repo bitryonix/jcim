@@ -1,5 +1,4 @@
 //! Binary entry point for the JCIM 0.3 local service.
-#![allow(clippy::missing_docs_in_private_items)]
 #![forbid(unsafe_code)]
 
 use std::path::PathBuf;
@@ -9,6 +8,7 @@ use tracing_subscriber::EnvFilter;
 
 use jcim_app::JcimApp;
 
+/// CLI arguments for the `jcimd` daemon binary.
 #[derive(Debug, Parser)]
 #[command(name = "jcimd")]
 #[command(about = "JCIM 0.3 local gRPC service")]
@@ -33,6 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Build the Unix-signal future used for graceful daemon shutdown.
 fn shutdown_signal()
 -> Result<impl std::future::Future<Output = ()> + Send + 'static, Box<dyn std::error::Error>> {
     use tokio::signal::unix::{SignalKind, signal};

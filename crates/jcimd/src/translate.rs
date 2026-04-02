@@ -25,6 +25,7 @@ use jcim_core::iso7816::{
     StatusWord, StatusWordClass, TransmissionConvention, TransportProtocol,
 };
 
+/// Convert the RPC project selector into the application-layer selector model.
 pub(crate) fn into_project_selector(selector: ProjectSelector) -> ProjectSelectorInput {
     ProjectSelectorInput {
         project_path: (!selector.project_path.is_empty())
@@ -33,12 +34,14 @@ pub(crate) fn into_project_selector(selector: ProjectSelector) -> ProjectSelecto
     }
 }
 
+/// Convert the RPC simulation selector into the application-layer selector model.
 pub(crate) fn into_simulation_selector(selector: SimulationSelector) -> SimulationSelectorInput {
     SimulationSelectorInput {
         simulation_id: selector.simulation_id,
     }
 }
 
+/// Encode project details into the RPC response envelope.
 pub(crate) fn project_details_response(details: ProjectDetails) -> GetProjectResponse {
     GetProjectResponse {
         project: Some(project_info(details.project)),
@@ -46,6 +49,7 @@ pub(crate) fn project_details_response(details: ProjectDetails) -> GetProjectRes
     }
 }
 
+/// Convert one project summary into the RPC project-info message.
 pub(crate) fn project_info(project: ProjectSummary) -> ProjectInfo {
     ProjectInfo {
         project_id: project.project_id,
@@ -66,6 +70,7 @@ pub(crate) fn project_info(project: ProjectSummary) -> ProjectInfo {
     }
 }
 
+/// Convert one artifact summary into the RPC artifact message.
 pub(crate) fn artifact_info(artifact: ArtifactSummary) -> Artifact {
     Artifact {
         kind: artifact.kind,
@@ -73,6 +78,7 @@ pub(crate) fn artifact_info(artifact: ArtifactSummary) -> Artifact {
     }
 }
 
+/// Convert one simulation summary into the RPC simulation-info message.
 pub(crate) fn simulation_info(simulation: SimulationSummary) -> SimulationInfo {
     SimulationInfo {
         simulation_id: simulation.simulation_id,
@@ -101,6 +107,7 @@ pub(crate) fn simulation_info(simulation: SimulationSummary) -> SimulationInfo {
     }
 }
 
+/// Encode a card-install summary into the RPC install response.
 pub(crate) fn install_cap_response(summary: CardInstallSummary) -> InstallCapResponse {
     InstallCapResponse {
         reader_name: summary.reader_name,
@@ -119,6 +126,7 @@ pub(crate) fn install_cap_response(summary: CardInstallSummary) -> InstallCapRes
     }
 }
 
+/// Encode a card-delete summary into the RPC delete response.
 pub(crate) fn delete_item_response(summary: CardDeleteSummary) -> DeleteItemResponse {
     DeleteItemResponse {
         reader_name: summary.reader_name,
@@ -128,6 +136,7 @@ pub(crate) fn delete_item_response(summary: CardDeleteSummary) -> DeleteItemResp
     }
 }
 
+/// Encode a card-package inventory snapshot into the RPC package-list response.
 pub(crate) fn package_inventory_response(inventory: CardPackageInventory) -> ListPackagesResponse {
     ListPackagesResponse {
         reader_name: inventory.reader_name,
@@ -143,6 +152,7 @@ pub(crate) fn package_inventory_response(inventory: CardPackageInventory) -> Lis
     }
 }
 
+/// Encode a card-applet inventory snapshot into the RPC applet-list response.
 pub(crate) fn applet_inventory_response(inventory: CardAppletInventory) -> ListAppletsResponse {
     ListAppletsResponse {
         reader_name: inventory.reader_name,
@@ -158,6 +168,7 @@ pub(crate) fn applet_inventory_response(inventory: CardAppletInventory) -> ListA
     }
 }
 
+/// Decode one structured or raw protobuf APDU frame into the core typed APDU model.
 // `tonic::Status` is the maintained transport-edge error type for these conversion helpers.
 #[allow(clippy::result_large_err)]
 pub(crate) fn command_apdu_from_proto(
@@ -246,6 +257,7 @@ pub(crate) fn command_apdu_from_proto(
     Ok(command)
 }
 
+/// Encode a typed response APDU into the structured RPC response frame.
 pub(crate) fn response_apdu_frame(response: &ResponseApdu) -> ResponseApduFrame {
     let status = response.status_word();
     ResponseApduFrame {
@@ -256,6 +268,7 @@ pub(crate) fn response_apdu_frame(response: &ResponseApdu) -> ResponseApduFrame 
     }
 }
 
+/// Encode one AID into the RPC helper shape used across multiple transport responses.
 fn aid_info(aid: &Aid) -> AidInfo {
     AidInfo {
         raw: aid.as_bytes().to_vec(),
@@ -263,6 +276,7 @@ fn aid_info(aid: &Aid) -> AidInfo {
     }
 }
 
+/// Encode one selected-file descriptor into the RPC session-state shape.
 fn file_selection_info(selection: &FileSelection) -> FileSelectionInfo {
     FileSelectionInfo {
         selection: Some(match selection {
@@ -273,6 +287,7 @@ fn file_selection_info(selection: &FileSelection) -> FileSelectionInfo {
     }
 }
 
+/// Encode one status word plus its derived class and hints into the RPC model.
 fn status_word_info(status: StatusWord) -> StatusWordInfo {
     StatusWordInfo {
         value: u32::from(status.as_u16()),
@@ -296,6 +311,7 @@ fn status_word_info(status: StatusWord) -> StatusWordInfo {
     }
 }
 
+/// Encode one ATR into the RPC ATR info message.
 pub(crate) fn atr_info(atr: &Atr) -> AtrInfo {
     AtrInfo {
         raw: atr.raw.clone(),
@@ -332,6 +348,7 @@ pub(crate) fn atr_info(atr: &Atr) -> AtrInfo {
     }
 }
 
+/// Encode negotiated protocol parameters into the RPC protocol-parameters message.
 pub(crate) fn protocol_parameters_info(parameters: &ProtocolParameters) -> ProtocolParametersInfo {
     ProtocolParametersInfo {
         protocol: parameters.protocol.map_or(
@@ -345,6 +362,7 @@ pub(crate) fn protocol_parameters_info(parameters: &ProtocolParameters) -> Proto
     }
 }
 
+/// Encode ISO capability flags into the RPC capabilities message.
 pub(crate) fn iso_capabilities_info(capabilities: &IsoCapabilities) -> IsoCapabilitiesInfo {
     IsoCapabilitiesInfo {
         protocols: capabilities
@@ -362,6 +380,7 @@ pub(crate) fn iso_capabilities_info(capabilities: &IsoCapabilities) -> IsoCapabi
     }
 }
 
+/// Encode tracked ISO session state into the RPC session-state message.
 pub(crate) fn iso_session_state_info(state: &IsoSessionState) -> IsoSessionStateInfo {
     IsoSessionStateInfo {
         power_state: match state.power_state {
@@ -393,6 +412,7 @@ pub(crate) fn iso_session_state_info(state: &IsoSessionState) -> IsoSessionState
     }
 }
 
+/// Encode one logical-channel snapshot into the RPC session-state shape.
 fn logical_channel_state_info(channel: &LogicalChannelState) -> LogicalChannelStateInfo {
     LogicalChannelStateInfo {
         channel_number: u32::from(channel.channel_number),
@@ -401,6 +421,7 @@ fn logical_channel_state_info(channel: &LogicalChannelState) -> LogicalChannelSt
     }
 }
 
+/// Encode one retry-counter snapshot into the RPC session-state shape.
 fn retry_counter_info(counter: &RetryCounterState) -> RetryCounterInfo {
     RetryCounterInfo {
         reference: u32::from(counter.reference),
@@ -408,6 +429,7 @@ fn retry_counter_info(counter: &RetryCounterState) -> RetryCounterInfo {
     }
 }
 
+/// Encode tracked secure-messaging state into the RPC session-state shape.
 fn secure_messaging_state_info(state: &SecureMessagingState) -> SecureMessagingStateInfo {
     let (protocol, protocol_label) = match state.protocol.as_ref() {
         Some(SecureMessagingProtocol::Iso7816) => (
@@ -442,6 +464,7 @@ fn secure_messaging_state_info(state: &SecureMessagingState) -> SecureMessagingS
     }
 }
 
+/// Encode one established GP secure channel into the RPC transport summary.
 pub(crate) fn gp_secure_channel_info(summary: &GpSecureChannelSummary) -> GpSecureChannelInfo {
     let protocol = match summary.secure_channel.keyset.mode {
         jcim_core::globalplatform::ScpMode::Scp02 => {
@@ -461,6 +484,7 @@ pub(crate) fn gp_secure_channel_info(summary: &GpSecureChannelSummary) -> GpSecu
     }
 }
 
+/// Map one transport protocol to the numeric protobuf enum value expected on the wire.
 fn transport_protocol_value(protocol: TransportProtocol) -> i32 {
     match protocol {
         TransportProtocol::T0 => jcim_api::v0_3::TransportProtocol::T0 as i32,
@@ -472,6 +496,7 @@ fn transport_protocol_value(protocol: TransportProtocol) -> i32 {
     }
 }
 
+/// Decode the protobuf secure-messaging protocol enum plus label into the core model.
 pub(crate) fn secure_messaging_protocol_from_proto(
     value: i32,
     label: &str,
@@ -487,6 +512,7 @@ pub(crate) fn secure_messaging_protocol_from_proto(
     }
 }
 
+/// Decode the protobuf APDU-case enum into the core APDU-case model.
 fn command_apdu_case_from_proto(value: jcim_api::v0_3::CommandApduCase) -> Option<CommandApduCase> {
     match value {
         jcim_api::v0_3::CommandApduCase::CommandApduCase1 => Some(CommandApduCase::Case1),
@@ -506,6 +532,7 @@ fn command_apdu_case_from_proto(value: jcim_api::v0_3::CommandApduCase) -> Optio
     }
 }
 
+/// Decode the protobuf command-domain enum into the ISO/GP command-domain model.
 fn command_domain_from_proto(
     value: jcim_api::v0_3::CommandDomain,
 ) -> Option<iso7816::CommandDomain> {
@@ -519,6 +546,7 @@ fn command_domain_from_proto(
     }
 }
 
+/// Decode the protobuf command-kind enum into the ISO/GP command-kind model.
 fn command_kind_from_proto(value: jcim_api::v0_3::CommandKind) -> Option<iso7816::CommandKind> {
     Some(match value {
         jcim_api::v0_3::CommandKind::Select => iso7816::CommandKind::Select,
@@ -558,6 +586,7 @@ fn command_kind_from_proto(value: jcim_api::v0_3::CommandKind) -> Option<iso7816
     })
 }
 
+/// Encode service-status state into the RPC service-status response envelope.
 pub(crate) fn service_status_response(status: ServiceStatusSummary) -> GetServiceStatusResponse {
     GetServiceStatusResponse {
         socket_path: status.socket_path.display().to_string(),
@@ -569,6 +598,7 @@ pub(crate) fn service_status_response(status: ServiceStatusSummary) -> GetServic
     }
 }
 
+/// Map one application error into the tonic transport status used by the local daemon API.
 pub(crate) fn to_status(error: JcimError) -> Status {
     match error {
         JcimError::Unsupported(message)
@@ -581,5 +611,184 @@ pub(crate) fn to_status(error: JcimError) -> Status {
         | JcimError::BackendExited(message)
         | JcimError::BackendStartup(message) => Status::unavailable(message),
         other => Status::internal(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use tonic::Code;
+
+    use jcim_api::v0_3::{
+        ApduEncoding, CommandApduCase, CommandApduFrame, CommandDomain, CommandKind,
+        SecureMessagingProtocol as SecureMessagingProtocolProto, StatusWordClass,
+    };
+    use jcim_core::error::JcimError;
+    use jcim_core::iso7816::{self, StatusWord};
+
+    use super::{
+        command_apdu_from_proto, secure_messaging_protocol_from_proto, status_word_info, to_status,
+    };
+
+    #[test]
+    fn to_status_maps_public_error_classes_to_transport_codes() {
+        let invalid = to_status(JcimError::InvalidApdu("bad apdu".to_string()));
+        assert_eq!(invalid.code(), Code::InvalidArgument);
+        assert_eq!(invalid.message(), "bad apdu");
+
+        let unavailable = to_status(JcimError::BackendStartup("bundle missing".to_string()));
+        assert_eq!(unavailable.code(), Code::Unavailable);
+        assert_eq!(unavailable.message(), "bundle missing");
+
+        let internal = to_status(JcimError::MissingStatePath(PathBuf::from(
+            "/tmp/runtime.toml",
+        )));
+        assert_eq!(internal.code(), Code::Internal);
+        assert!(internal.message().contains("/tmp/runtime.toml"));
+    }
+
+    #[test]
+    fn status_word_info_preserves_retry_and_length_hints() {
+        let remaining = status_word_info(StatusWord::new(0x6110));
+        assert_eq!(remaining.class, StatusWordClass::NormalProcessing as i32);
+        assert_eq!(remaining.label, "response_bytes_available");
+        assert_eq!(remaining.remaining_response_bytes, Some(16));
+        assert!(remaining.success);
+
+        let retry = status_word_info(StatusWord::new(0x63C2));
+        assert_eq!(retry.class, StatusWordClass::Warning as i32);
+        assert_eq!(retry.label, "verify_failed_retries_remaining");
+        assert_eq!(retry.retry_counter, Some(2));
+        assert!(retry.warning);
+
+        let exact_length = status_word_info(StatusWord::new(0x6C20));
+        assert_eq!(exact_length.class, StatusWordClass::CheckingError as i32);
+        assert_eq!(exact_length.label, "correct_length_hint");
+        assert_eq!(exact_length.exact_length_hint, Some(32));
+    }
+
+    #[test]
+    fn command_apdu_from_proto_accepts_valid_structured_frames() {
+        let mut frame = select_command_frame();
+        frame.raw.clear();
+
+        let command = command_apdu_from_proto(Some(frame)).expect("valid structured frame");
+        assert_eq!(
+            command.to_bytes(),
+            [
+                0x00, 0xA4, 0x04, 0x00, 0x09, 0x53, 0x61, 0x74, 0x6F, 0x43, 0x68, 0x69, 0x70, 0x00,
+            ]
+        );
+    }
+
+    #[test]
+    fn command_apdu_from_proto_rejects_mismatched_metadata() {
+        let mut frame = select_command_frame();
+        frame.kind = CommandKind::GetResponse as i32;
+        let kind_error =
+            command_apdu_from_proto(Some(frame)).expect_err("kind mismatch should fail");
+        assert_eq!(kind_error.code(), Code::InvalidArgument);
+        assert!(kind_error.message().contains("command kind"));
+
+        let mut frame = select_command_frame();
+        frame.logical_channel = 1;
+        let channel_error =
+            command_apdu_from_proto(Some(frame)).expect_err("channel mismatch should fail");
+        assert_eq!(channel_error.code(), Code::InvalidArgument);
+        assert!(channel_error.message().contains("logical channel metadata"));
+    }
+
+    #[test]
+    fn secure_messaging_protocol_from_proto_preserves_custom_labels() {
+        assert_eq!(
+            secure_messaging_protocol_from_proto(
+                SecureMessagingProtocolProto::Iso7816 as i32,
+                "ignored",
+            ),
+            Some(jcim_core::iso7816::SecureMessagingProtocol::Iso7816)
+        );
+        assert_eq!(
+            secure_messaging_protocol_from_proto(
+                SecureMessagingProtocolProto::Other as i32,
+                "scp-custom",
+            ),
+            Some(jcim_core::iso7816::SecureMessagingProtocol::Other(
+                "scp-custom".to_string()
+            ))
+        );
+        assert_eq!(
+            secure_messaging_protocol_from_proto(
+                SecureMessagingProtocolProto::Unspecified as i32,
+                "",
+            ),
+            None
+        );
+    }
+
+    fn select_command_frame() -> CommandApduFrame {
+        let command = jcim_core::apdu::CommandApdu::parse(&[
+            0x00, 0xA4, 0x04, 0x00, 0x09, 0x53, 0x61, 0x74, 0x6F, 0x43, 0x68, 0x69, 0x70, 0x00,
+        ])
+        .expect("parse select");
+        let descriptor = iso7816::describe_command(&command);
+        CommandApduFrame {
+            raw: command.to_bytes(),
+            cla: u32::from(command.cla),
+            ins: u32::from(command.ins),
+            p1: u32::from(command.p1),
+            p2: u32::from(command.p2),
+            data: command.data.clone(),
+            ne: command.ne.map(|value| value as u32),
+            encoding: ApduEncoding::Short as i32,
+            apdu_case: CommandApduCase::CommandApduCase3Short as i32,
+            domain: match descriptor.domain {
+                jcim_core::iso7816::CommandDomain::Iso7816 => CommandDomain::Iso7816 as i32,
+                jcim_core::iso7816::CommandDomain::GlobalPlatform => {
+                    CommandDomain::GlobalPlatform as i32
+                }
+                jcim_core::iso7816::CommandDomain::Opaque => CommandDomain::Opaque as i32,
+            },
+            kind: match descriptor.kind {
+                jcim_core::iso7816::CommandKind::Select => CommandKind::Select as i32,
+                jcim_core::iso7816::CommandKind::ManageChannel => CommandKind::ManageChannel as i32,
+                jcim_core::iso7816::CommandKind::GetResponse => CommandKind::GetResponse as i32,
+                jcim_core::iso7816::CommandKind::ReadBinary => CommandKind::ReadBinary as i32,
+                jcim_core::iso7816::CommandKind::WriteBinary => CommandKind::WriteBinary as i32,
+                jcim_core::iso7816::CommandKind::UpdateBinary => CommandKind::UpdateBinary as i32,
+                jcim_core::iso7816::CommandKind::EraseBinary => CommandKind::EraseBinary as i32,
+                jcim_core::iso7816::CommandKind::ReadRecord => CommandKind::ReadRecord as i32,
+                jcim_core::iso7816::CommandKind::UpdateRecord => CommandKind::UpdateRecord as i32,
+                jcim_core::iso7816::CommandKind::AppendRecord => CommandKind::AppendRecord as i32,
+                jcim_core::iso7816::CommandKind::SearchRecord => CommandKind::SearchRecord as i32,
+                jcim_core::iso7816::CommandKind::GetData => CommandKind::GetData as i32,
+                jcim_core::iso7816::CommandKind::PutData => CommandKind::PutData as i32,
+                jcim_core::iso7816::CommandKind::Verify => CommandKind::Verify as i32,
+                jcim_core::iso7816::CommandKind::ChangeReferenceData => {
+                    CommandKind::ChangeReferenceData as i32
+                }
+                jcim_core::iso7816::CommandKind::ResetRetryCounter => {
+                    CommandKind::ResetRetryCounter as i32
+                }
+                jcim_core::iso7816::CommandKind::InternalAuthenticate => {
+                    CommandKind::InternalAuthenticate as i32
+                }
+                jcim_core::iso7816::CommandKind::ExternalAuthenticate => {
+                    CommandKind::ExternalAuthenticate as i32
+                }
+                jcim_core::iso7816::CommandKind::GetChallenge => CommandKind::GetChallenge as i32,
+                jcim_core::iso7816::CommandKind::Envelope => CommandKind::Envelope as i32,
+                jcim_core::iso7816::CommandKind::GpGetStatus => CommandKind::GpGetStatus as i32,
+                jcim_core::iso7816::CommandKind::GpSetStatus => CommandKind::GpSetStatus as i32,
+                jcim_core::iso7816::CommandKind::GpInitializeUpdate => {
+                    CommandKind::GpInitializeUpdate as i32
+                }
+                jcim_core::iso7816::CommandKind::GpExternalAuthenticate => {
+                    CommandKind::GpExternalAuthenticate as i32
+                }
+                jcim_core::iso7816::CommandKind::Opaque => CommandKind::Opaque as i32,
+            },
+            logical_channel: u32::from(descriptor.logical_channel),
+        }
     }
 }

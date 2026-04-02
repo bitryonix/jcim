@@ -1,7 +1,4 @@
 //! Unified Rust APDU connection surface for real and virtual cards.
-#![allow(clippy::missing_docs_in_private_items)]
-// This module is the thin internal dispatcher behind the public `CardConnection` API.
-// The public surface is documented; private storage and helper glue stay intentionally compact.
 
 use std::fmt;
 
@@ -14,11 +11,14 @@ use crate::types::{ApduExchangeSummary, CardConnectionKind, CardConnectionLocato
 
 /// One unified APDU connection to a real reader or one virtual simulation.
 pub struct CardConnection {
+    /// SDK client used to route transport calls through the local service.
     client: JcimClient,
+    /// Resolved location behind this connection.
     locator: CardConnectionLocator,
 }
 
 impl CardConnection {
+    /// Build one connection from an already-initialized client and resolved target locator.
     pub(crate) fn new(client: JcimClient, locator: CardConnectionLocator) -> Self {
         Self { client, locator }
     }
@@ -120,6 +120,7 @@ impl CardConnection {
 }
 
 impl fmt::Debug for CardConnection {
+    /// Render a stable debug shape that exposes the target kind and locator without transport internals.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("CardConnection")

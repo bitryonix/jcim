@@ -5,6 +5,8 @@
 //! and run the same secure-channel wallet/signing flow there instead.
 
 #![forbid(unsafe_code)]
+// Example-local helpers intentionally prioritize a readable end-to-end flow over private-item
+// rustdoc on every transient parser, argument, and demo-only state holder.
 #![allow(clippy::missing_docs_in_private_items)]
 
 #[path = "support/satochip.rs"]

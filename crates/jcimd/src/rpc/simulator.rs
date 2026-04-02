@@ -76,6 +76,9 @@ impl SimulatorService for LocalRpc {
         let simulation_id = selector.simulation_id.clone();
         let app = self.app.clone();
         let events = blocking(move || app.simulation_events(&selector)).await?;
+        // `tonic` requires `Result<T, Status>` stream items here, so boxing the error would only
+        // add noise around a transport-mandated signature.
+        #[allow(clippy::result_large_err)]
         let stream = tokio_stream::iter(events.into_iter().map(move |event| {
             Ok(SimulationEvent {
                 simulation_id: simulation_id.clone(),
@@ -273,5 +276,152 @@ impl SimulatorService for LocalRpc {
             atr: summary.atr.as_ref().map(atr_info),
             session_state: Some(iso_session_state_info(&summary.session_state)),
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio_stream::StreamExt;
+    use tonic::Request;
+
+    use jcim_api::v0_3::simulator_service_server::SimulatorService;
+    use jcim_core::{aid::Aid, iso7816};
+
+    use super::*;
+    use crate::rpc::testsupport::{
+        acquire_local_service_lock, create_demo_project, load_rpc, project_selector,
+        simulation_selector, temp_root,
+    };
+
+    #[tokio::test]
+    async fn simulator_rpc_maps_runtime_happy_paths() {
+        let _service_lock = acquire_local_service_lock();
+        let root = temp_root("simulator");
+        let rpc = load_rpc(&root);
+        let project_root = create_demo_project(&rpc, &root, "Demo");
+        let select_applet =
+            iso7816::select_by_name(&Aid::from_hex("F00000000101").expect("default applet aid"))
+                .to_bytes();
+
+        let started = SimulatorService::start_simulation(
+            &rpc,
+            Request::new(StartSimulationRequest {
+                project: Some(project_selector(&project_root)),
+            }),
+        )
+        .await
+        .expect("start simulation")
+        .into_inner();
+        let simulation = started.simulation.expect("simulation payload");
+        let selector = simulation_selector(&simulation.simulation_id);
+
+        let loaded = SimulatorService::get_simulation(&rpc, Request::new(selector.clone()))
+            .await
+            .expect("get simulation")
+            .into_inner();
+        let mut events =
+            SimulatorService::stream_simulation_events(&rpc, Request::new(selector.clone()))
+                .await
+                .expect("stream simulation events")
+                .into_inner();
+        let first_event = events
+            .next()
+            .await
+            .expect("first event")
+            .expect("simulation event");
+        let typed = SimulatorService::transmit_apdu(
+            &rpc,
+            Request::new(TransmitApduRequest {
+                simulation: Some(selector.clone()),
+                command: Some(jcim_api::v0_3::CommandApduFrame {
+                    raw: select_applet.clone(),
+                    ..jcim_api::v0_3::CommandApduFrame::default()
+                }),
+            }),
+        )
+        .await
+        .expect("typed apdu")
+        .into_inner();
+        let raw = SimulatorService::transmit_raw_apdu(
+            &rpc,
+            Request::new(TransmitRawApduRequest {
+                simulation: Some(selector.clone()),
+                apdu: select_applet,
+            }),
+        )
+        .await
+        .expect("raw apdu")
+        .into_inner();
+        let session = SimulatorService::get_session_state(&rpc, Request::new(selector.clone()))
+            .await
+            .expect("get session state")
+            .into_inner();
+        let channel = SimulatorService::manage_channel(
+            &rpc,
+            Request::new(ManageChannelRequest {
+                simulation: Some(selector.clone()),
+                open: true,
+                channel_number: None,
+            }),
+        )
+        .await
+        .expect("manage channel")
+        .into_inner();
+        let opened = SimulatorService::open_secure_messaging(
+            &rpc,
+            Request::new(SecureMessagingRequest {
+                simulation: Some(selector.clone()),
+                protocol: jcim_api::v0_3::SecureMessagingProtocol::Scp03 as i32,
+                protocol_label: String::new(),
+                security_level: Some(0x03),
+                session_id: "rpc-sim-session".to_string(),
+            }),
+        )
+        .await
+        .expect("open secure messaging")
+        .into_inner();
+        let advanced = SimulatorService::advance_secure_messaging(
+            &rpc,
+            Request::new(SecureMessagingAdvanceRequest {
+                simulation: Some(selector.clone()),
+                increment_by: 1,
+            }),
+        )
+        .await
+        .expect("advance secure messaging")
+        .into_inner();
+        let closed =
+            SimulatorService::close_gp_secure_channel(&rpc, Request::new(selector.clone()))
+                .await
+                .expect("close gp alias")
+                .into_inner();
+        let reset = SimulatorService::reset_simulation(&rpc, Request::new(selector.clone()))
+            .await
+            .expect("reset simulation")
+            .into_inner();
+        let stopped = SimulatorService::stop_simulation(&rpc, Request::new(selector))
+            .await
+            .expect("stop simulation")
+            .into_inner();
+
+        assert_eq!(
+            loaded.simulation.expect("loaded simulation").simulation_id,
+            simulation.simulation_id
+        );
+        assert!(!first_event.message.is_empty());
+        assert_eq!(typed.response.expect("typed response").sw, 0x9000);
+        assert_eq!(raw.response.expect("raw response").sw, 0x9000);
+        assert!(session.session_state.is_some());
+        assert_eq!(channel.channel_number, Some(1));
+        assert!(opened.session_state.is_some());
+        assert!(advanced.session_state.is_some());
+        assert!(closed.session_state.is_some());
+        assert!(reset.atr.is_some());
+        assert_eq!(
+            stopped.simulation.expect("stopped simulation").status,
+            jcim_api::v0_3::SimulationStatus::Stopped as i32
+        );
+
+        let _ = std::fs::remove_dir_all(root);
     }
 }

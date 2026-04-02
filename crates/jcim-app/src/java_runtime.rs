@@ -1,8 +1,4 @@
 //! Bundled JVM resolution for managed simulator and helper workflows.
-#![allow(clippy::missing_docs_in_private_items)]
-// Internal helper module for runtime resolution and extraction. The public-facing behavior is
-// documented on the app/service surface; keeping the private helper layer lightly documented here
-// preserves signal without forcing rustdoc boilerplate onto every extraction helper.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,29 +8,43 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use jcim_core::error::{JcimError, Result};
 use sha2::{Digest, Sha256};
 
+/// Bundled JVM version string used to locate shipped runtime archives.
 const BUNDLED_RUNTIME_VERSION: &str = "temurin-11.0.30+7";
 
+/// Origin of the Java runtime selected for managed tools.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum JavaRuntimeSource {
+    /// The runtime came from a bundled archive shipped with JCIM.
     Bundled,
+    /// The runtime came from the user-configured Java binary path.
     Configured,
 }
 
+/// Resolved Java executable plus the metadata surfaced in setup and doctor output.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ResolvedJavaRuntime {
+    /// Resolved `java` executable path.
     pub(crate) java_bin: PathBuf,
+    /// Source used to obtain this runtime.
     pub(crate) source: JavaRuntimeSource,
+    /// Human-readable label shown in setup and doctor output.
     pub(crate) label: String,
 }
 
+/// Metadata for one bundled Java archive shipped with the workspace.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct BundledJavaArchive {
+    /// Host operating system supported by this archive.
     os: &'static str,
+    /// Host architecture supported by this archive.
     arch: &'static str,
+    /// Archive file name under `third_party/java-runtimes`.
     archive_name: &'static str,
+    /// Expected SHA-256 checksum for the archive bytes.
     sha256: &'static str,
 }
 
+/// Supported bundled JVM archives keyed by host OS and architecture.
 const SUPPORTED_ARCHIVES: &[BundledJavaArchive] = &[
     BundledJavaArchive {
         os: "macos",
@@ -62,6 +72,7 @@ const SUPPORTED_ARCHIVES: &[BundledJavaArchive] = &[
     },
 ];
 
+/// Resolve the managed Java runtime, preferring a supported bundled runtime when available.
 pub(crate) fn resolve_java_runtime(
     managed_bundle_root: &Path,
     configured_java_bin: &str,
@@ -86,6 +97,7 @@ pub(crate) fn resolve_java_runtime(
     })
 }
 
+/// Return the bundled runtime archive metadata that matches the current host tuple.
 fn bundled_runtime_for(os: &str, arch: &str) -> Option<BundledJavaArchive> {
     SUPPORTED_ARCHIVES
         .iter()
@@ -93,12 +105,14 @@ fn bundled_runtime_for(os: &str, arch: &str) -> Option<BundledJavaArchive> {
         .find(|archive| archive.os == os && archive.arch == arch)
 }
 
+/// Return the repository root that stores bundled Java runtime archives.
 fn bundled_runtime_archive_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../third_party/java-runtimes")
         .join(BUNDLED_RUNTIME_VERSION)
 }
 
+/// Extract and validate the bundled runtime for one supported host, returning the `java` binary path.
 fn ensure_bundled_runtime(
     archive: BundledJavaArchive,
     archive_root: &Path,
@@ -173,6 +187,7 @@ fn ensure_bundled_runtime(
     })
 }
 
+/// Verify that the bundled runtime archive checksum matches the shipped manifest value.
 fn verify_archive_checksum(archive_path: &Path, expected_hex: &str) -> Result<()> {
     let digest = Sha256::digest(&fs::read(archive_path)?);
     let actual_hex = hex::encode(digest);
@@ -185,6 +200,7 @@ fn verify_archive_checksum(archive_path: &Path, expected_hex: &str) -> Result<()
     Ok(())
 }
 
+/// Return the extracted runtime root after unpacking, collapsing a single top-level directory when present.
 fn extracted_runtime_root(staging_root: &Path) -> Result<PathBuf> {
     let mut entries = fs::read_dir(staging_root)?
         .filter_map(|entry| entry.ok())
@@ -196,6 +212,7 @@ fn extracted_runtime_root(staging_root: &Path) -> Result<PathBuf> {
     Ok(staging_root.to_path_buf())
 }
 
+/// Find the first `bin/java` executable reachable under one extracted runtime root.
 fn find_java_bin(root: &Path) -> Option<PathBuf> {
     if !root.exists() {
         return None;
@@ -223,6 +240,7 @@ fn find_java_bin(root: &Path) -> Option<PathBuf> {
     None
 }
 
+/// Build a process-local suffix for temporary extraction directories.
 fn unique_suffix() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -1,12 +1,16 @@
 //! Physical-card adapter boundary for JCIM.
 
-#![allow(clippy::missing_docs_in_private_items)]
-
+/// Adapter trait and shared helper types.
 mod adapter;
+/// GP keyset resolution helpers for helper-tool and GPPro workflows.
 mod gp_keyset;
+/// Java helper/GPPro process invocation helpers.
 mod helper_tool;
+/// Text parser for helper-tool package and applet inventory output.
 mod inventory_parser;
+/// Java-backed physical-card adapter implementation.
 mod java_adapter;
+/// In-memory mock physical-card adapter used by tests and docs flows.
 mod mock_adapter;
 
 use std::collections::{BTreeMap, HashSet};

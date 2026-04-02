@@ -1,3 +1,7 @@
+// The public mock adapter is maintained, but its APDU-emulation internals are support code for
+// tests and fixtures rather than part of the product-facing documentation surface.
+#![allow(clippy::missing_docs_in_private_items)]
+
 use super::*;
 
 mod dispatch;

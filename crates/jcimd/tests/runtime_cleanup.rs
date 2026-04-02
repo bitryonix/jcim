@@ -20,6 +20,7 @@ use jcim_config::project::{ManagedPaths, UserConfig};
 
 #[tokio::test]
 async fn stale_socket_is_replaced_and_runtime_files_are_cleaned_on_shutdown() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "stale_socket_is_replaced_and_runtime_files_are_cleaned_on_shutdown",
     ) {
@@ -58,6 +59,7 @@ async fn stale_socket_is_replaced_and_runtime_files_are_cleaned_on_shutdown() {
 
 #[tokio::test]
 async fn regular_files_at_the_socket_path_fail_closed() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let root = temp_root("regular-file");
     let managed_paths = ManagedPaths::for_root(root.clone());
     std::fs::create_dir_all(&managed_paths.runtime_dir).expect("create runtime dir");
@@ -74,6 +76,7 @@ async fn regular_files_at_the_socket_path_fail_closed() {
 
 #[tokio::test]
 async fn symlinked_socket_paths_fail_closed() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let root = temp_root("symlink-socket");
     let managed_paths = ManagedPaths::for_root(root.clone());
     std::fs::create_dir_all(&managed_paths.runtime_dir).expect("create runtime dir");
@@ -93,6 +96,7 @@ async fn symlinked_socket_paths_fail_closed() {
 
 #[tokio::test]
 async fn graceful_shutdown_removes_socket_and_runtime_metadata() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "graceful_shutdown_removes_socket_and_runtime_metadata",
     ) {
@@ -125,6 +129,7 @@ async fn graceful_shutdown_removes_socket_and_runtime_metadata() {
 
 #[tokio::test]
 async fn stale_runtime_metadata_is_replaced_before_restart() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "stale_runtime_metadata_is_replaced_before_restart",
     ) {
@@ -180,6 +185,7 @@ async fn stale_runtime_metadata_is_replaced_before_restart() {
 
 #[tokio::test]
 async fn repeated_graceful_restarts_reuse_the_same_runtime_directory() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "repeated_graceful_restarts_reuse_the_same_runtime_directory",
     ) {
@@ -229,6 +235,7 @@ async fn repeated_graceful_restarts_reuse_the_same_runtime_directory() {
 
 #[tokio::test]
 async fn backend_start_failure_leaves_daemon_recoverable_until_shutdown() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "backend_start_failure_leaves_daemon_recoverable_until_shutdown",
     ) {

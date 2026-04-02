@@ -3,6 +3,7 @@ use jcim_core::model::CardProfile;
 
 use super::CapPackage;
 
+/// Validate one parsed CAP package against the selected card profile constraints.
 pub(super) fn validate_for_profile(package: &CapPackage, profile: &CardProfile) -> Result<()> {
     if package.version.major != 2 || !profile.supports_cap_minor(package.version.minor) {
         return Err(JcimError::Unsupported(format!(

@@ -1,14 +1,20 @@
 //! Service bootstrap and lifecycle methods for the JCIM SDK.
 
-#![allow(clippy::missing_docs_in_private_items)]
-
+/// Service bootstrap, socket connection, and restart helpers.
 mod bootstrap;
+/// Build-service request helpers and response validation.
 mod build;
+/// Physical-card request helpers and response validation.
 mod cards;
+/// Project-service request helpers and selector translation.
 mod projects;
+/// Protobuf-to-SDK translation helpers and response decoding.
 mod proto;
+/// Simulator-service request helpers and response validation.
 mod simulations;
+/// System-service request helpers and service bootstrap reporting.
 mod system;
+/// Workspace overview and listing helpers.
 mod workspace;
 
 use tonic::transport::Channel;
@@ -22,7 +28,9 @@ use crate::types::{CardConnectionLocator, CardConnectionTarget, SimulationStatus
 /// Canonical async Rust client for the local JCIM service.
 #[derive(Clone)]
 pub struct JcimClient {
+    /// Managed path layout used to locate the local socket and runtime metadata.
     managed_paths: ManagedPaths,
+    /// Shared gRPC channel reused by task-oriented service clients.
     channel: Channel,
 }
 
@@ -40,14 +48,7 @@ impl JcimClient {
         let locator = match target {
             CardConnectionTarget::Reader(reader) => {
                 let status = self.validated_card_status_for_connection(reader).await?;
-                let reader_name = status.reader_name.trim().to_string();
-                if reader_name.is_empty() {
-                    return Err(JcimSdkError::InvalidResponse(
-                        "service returned an empty reader name for an opened card connection"
-                            .to_string(),
-                    ));
-                }
-                CardConnectionLocator::Reader { reader_name }
+                reader_connection_locator(&status)?
             }
             CardConnectionTarget::ExistingSimulation(simulation) => {
                 let summary = self.validated_running_simulation(simulation).await?;
@@ -72,5 +73,41 @@ impl JcimClient {
             }
         };
         Ok(CardConnection::new(self.clone(), locator))
+    }
+}
+
+/// Convert a validated card-status response into the unified reader connection locator.
+fn reader_connection_locator(
+    status: &crate::types::CardStatusSummary,
+) -> Result<CardConnectionLocator> {
+    let reader_name = status.reader_name.trim().to_string();
+    if reader_name.is_empty() {
+        return Err(JcimSdkError::InvalidResponse(
+            "service returned an empty reader name for an opened card connection".to_string(),
+        ));
+    }
+    Ok(CardConnectionLocator::Reader { reader_name })
+}
+
+#[cfg(test)]
+mod tests {
+    use jcim_core::iso7816::IsoCapabilities;
+
+    use super::*;
+
+    #[test]
+    fn reader_connection_locator_requires_non_empty_reader_names() {
+        let error = reader_connection_locator(&crate::types::CardStatusSummary {
+            reader_name: "   ".to_string(),
+            card_present: true,
+            atr: None,
+            active_protocol: None,
+            iso_capabilities: IsoCapabilities::default(),
+            session_state: jcim_core::iso7816::IsoSessionState::default(),
+            lines: Vec::new(),
+        })
+        .expect_err("empty reader names should fail");
+        assert!(matches!(error, JcimSdkError::InvalidResponse(_)));
+        assert!(error.to_string().contains("empty reader name"));
     }
 }

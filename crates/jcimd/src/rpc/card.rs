@@ -325,3 +325,177 @@ impl CardService for LocalRpc {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tonic::Request;
+
+    use jcim_api::v0_3::card_service_server::CardService;
+    use jcim_api::v0_3::install_cap_request::Input as InstallCapInput;
+    use jcim_core::globalplatform;
+
+    use super::*;
+    use crate::rpc::testsupport::{create_demo_project, load_rpc, project_selector, temp_root};
+
+    #[tokio::test]
+    async fn card_rpc_maps_reader_status_install_and_iso_happy_paths() {
+        let root = temp_root("card");
+        let rpc = load_rpc(&root);
+        let project_root = create_demo_project(&rpc, &root, "Demo");
+        let select_isd = globalplatform::select_issuer_security_domain().to_bytes();
+
+        let readers = CardService::list_readers(&rpc, Request::new(Empty {}))
+            .await
+            .expect("list readers")
+            .into_inner();
+        let status = CardService::get_card_status(
+            &rpc,
+            Request::new(CardStatusRequest {
+                reader_name: String::new(),
+            }),
+        )
+        .await
+        .expect("card status")
+        .into_inner();
+        let install = CardService::install_cap(
+            &rpc,
+            Request::new(InstallCapRequest {
+                input: Some(InstallCapInput::Project(project_selector(&project_root))),
+                reader_name: String::new(),
+            }),
+        )
+        .await
+        .expect("install cap")
+        .into_inner();
+        let packages = CardService::list_packages(
+            &rpc,
+            Request::new(ListPackagesRequest {
+                reader_name: String::new(),
+            }),
+        )
+        .await
+        .expect("list packages")
+        .into_inner();
+        let applets = CardService::list_applets(
+            &rpc,
+            Request::new(ListAppletsRequest {
+                reader_name: String::new(),
+            }),
+        )
+        .await
+        .expect("list applets")
+        .into_inner();
+        let session = CardService::get_session_state(
+            &rpc,
+            Request::new(CardSelector {
+                reader_name: String::new(),
+            }),
+        )
+        .await
+        .expect("get session state")
+        .into_inner();
+        let typed = CardService::transmit_apdu(
+            &rpc,
+            Request::new(CardApduRequest {
+                reader_name: String::new(),
+                command: Some(jcim_api::v0_3::CommandApduFrame {
+                    raw: select_isd.clone(),
+                    ..jcim_api::v0_3::CommandApduFrame::default()
+                }),
+            }),
+        )
+        .await
+        .expect("typed apdu")
+        .into_inner();
+        let raw = CardService::transmit_raw_apdu(
+            &rpc,
+            Request::new(CardRawApduRequest {
+                reader_name: String::new(),
+                apdu: select_isd,
+            }),
+        )
+        .await
+        .expect("raw apdu")
+        .into_inner();
+        let channel = CardService::manage_channel(
+            &rpc,
+            Request::new(CardManageChannelRequest {
+                reader_name: String::new(),
+                open: true,
+                channel_number: None,
+            }),
+        )
+        .await
+        .expect("manage channel")
+        .into_inner();
+        let opened = CardService::open_secure_messaging(
+            &rpc,
+            Request::new(CardSecureMessagingRequest {
+                reader_name: String::new(),
+                protocol: jcim_api::v0_3::SecureMessagingProtocol::Scp03 as i32,
+                protocol_label: String::new(),
+                security_level: Some(0x03),
+                session_id: "rpc-card-session".to_string(),
+            }),
+        )
+        .await
+        .expect("open secure messaging")
+        .into_inner();
+        let advanced = CardService::advance_secure_messaging(
+            &rpc,
+            Request::new(CardSecureMessagingAdvanceRequest {
+                reader_name: String::new(),
+                increment_by: 1,
+            }),
+        )
+        .await
+        .expect("advance secure messaging")
+        .into_inner();
+        let closed = CardService::close_gp_secure_channel(
+            &rpc,
+            Request::new(CardSelector {
+                reader_name: String::new(),
+            }),
+        )
+        .await
+        .expect("close gp secure channel alias")
+        .into_inner();
+        let reset = CardService::reset_card(
+            &rpc,
+            Request::new(ResetCardRequest {
+                reader_name: String::new(),
+            }),
+        )
+        .await
+        .expect("reset card")
+        .into_inner();
+
+        assert_eq!(readers.readers.len(), 1);
+        assert!(status.card_present);
+        assert!(!install.package_name.is_empty());
+        assert!(!packages.packages.is_empty());
+        assert!(!applets.applets.is_empty());
+        assert!(session.session_state.is_some());
+        assert_eq!(typed.response.expect("typed response").sw, 0x9000);
+        assert_eq!(raw.response.expect("raw response").sw, 0x9000);
+        assert_eq!(channel.channel_number, Some(1));
+        assert!(
+            opened
+                .session_state
+                .expect("opened state")
+                .secure_messaging
+                .is_some()
+        );
+        assert!(
+            advanced
+                .session_state
+                .expect("advanced state")
+                .secure_messaging
+                .is_some()
+        );
+        assert!(closed.session_state.is_some());
+        assert!(reset.atr.is_some());
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+}

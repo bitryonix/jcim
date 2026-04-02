@@ -59,7 +59,62 @@ impl JcimApp {
         self.state.build_events_for(&resolved.project_id)
     }
 
+    /// Append one retained build event to the in-memory event store for a project.
     fn remember_build_event(&self, project_id: &str, level: &str, message: String) {
         self.state.remember_build_event(project_id, level, message);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::app::testsupport::{load_test_app, project_selector, temp_root};
+
+    #[test]
+    fn get_artifacts_fails_closed_without_recorded_metadata() {
+        let root = temp_root("builds-missing");
+        let app = load_test_app(&root);
+        let project_root = root.join("demo");
+        app.create_project("Demo", &project_root)
+            .expect("create project");
+
+        let error = app
+            .get_artifacts(&project_selector(&project_root))
+            .expect_err("artifacts should require metadata");
+        assert!(error.to_string().contains("run `jcim build` first"));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn build_project_records_rebuild_and_reuse_events() {
+        let root = temp_root("builds-events");
+        let app = load_test_app(&root);
+        let project_root = root.join("demo");
+        app.create_project("Demo", &project_root)
+            .expect("create project");
+        let selector = project_selector(&project_root);
+
+        let (project, first_artifacts, rebuilt_first) =
+            app.build_project(&selector).expect("initial build");
+        let (_, second_artifacts, rebuilt_second) =
+            app.build_project(&selector).expect("reused build");
+        let events = app.build_events(&selector).expect("build events");
+
+        assert_eq!(project.name, "Demo");
+        assert!(rebuilt_first);
+        assert!(!rebuilt_second);
+        assert_eq!(first_artifacts, second_artifacts);
+        assert!(
+            events
+                .iter()
+                .any(|event| event.message.contains("build completed"))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|event| event.message.contains("build reused current artifacts"))
+        );
+
+        let _ = std::fs::remove_dir_all(root);
     }
 }

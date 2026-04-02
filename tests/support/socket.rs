@@ -3,6 +3,7 @@
 
 use std::fmt::Display;
 use std::io;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -11,8 +12,53 @@ use tokio::task::JoinHandle;
 use tokio::time::{Duration, sleep};
 
 const ASYNC_SOCKET_POLL_ATTEMPTS: usize = 40;
+const CROSS_PROCESS_LOCK_ATTEMPTS: usize = 480;
 const SYNC_SOCKET_POLL_ATTEMPTS: usize = 120;
+const CROSS_PROCESS_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const SOCKET_POLL_INTERVAL: Duration = Duration::from_millis(25);
+
+pub struct CrossProcessTestLock {
+    path: PathBuf,
+}
+
+pub fn acquire_cross_process_lock(scope: &str) -> CrossProcessTestLock {
+    let path = cross_process_lock_path(scope);
+    let owner = format!("pid={}\n", std::process::id());
+
+    for _ in 0..CROSS_PROCESS_LOCK_ATTEMPTS {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(mut file) => {
+                file.write_all(owner.as_bytes())
+                    .expect("write cross-process test lock owner");
+                return CrossProcessTestLock { path };
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                std::thread::sleep(CROSS_PROCESS_LOCK_POLL_INTERVAL);
+            }
+            Err(error) => panic!(
+                "failed to acquire cross-process test lock `{scope}` at {}: {error}",
+                path.display()
+            ),
+        }
+    }
+
+    let owner = std::fs::read_to_string(&path).unwrap_or_default();
+    let owner = owner.trim();
+    let owner_suffix = if owner.is_empty() {
+        String::new()
+    } else {
+        format!(" (current owner: {owner})")
+    };
+    panic!(
+        "timed out waiting for cross-process test lock `{scope}` at {}{}",
+        path.display(),
+        owner_suffix
+    );
+}
 
 pub fn unix_domain_sockets_supported(test_name: &str) -> bool {
     let probe_path = probe_socket_path(test_name);
@@ -98,6 +144,12 @@ pub fn wait_for_socket_or_child_exit(
     );
 }
 
+impl Drop for CrossProcessTestLock {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 async fn describe_server_exit<E>(
     socket_path: &Path,
     server: &mut JoinHandle<Result<(), E>>,
@@ -137,6 +189,26 @@ fn probe_socket_path(test_name: &str) -> PathBuf {
         .take(12)
         .collect::<String>();
     base_dir.join(format!("j{short_name}{unique:x}.sock"))
+}
+
+fn cross_process_lock_path(scope: &str) -> PathBuf {
+    let base_dir = if Path::new("/tmp").is_dir() {
+        PathBuf::from("/tmp")
+    } else {
+        std::env::temp_dir()
+    };
+    let short_scope = scope
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .map(|ch| ch.to_ascii_lowercase())
+        .take(24)
+        .collect::<String>();
+    let scope = if short_scope.is_empty() {
+        "default".to_string()
+    } else {
+        short_scope
+    };
+    base_dir.join(format!("jcim-test-lock-{scope}.lock"))
 }
 
 fn format_log_excerpt(stderr_log_path: &Path) -> String {

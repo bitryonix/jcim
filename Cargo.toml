@@ -34,7 +34,7 @@ missing_docs = "deny"
 unsafe_code = "forbid"
 
 [workspace.lints.clippy]
-missing_docs_in_private_items = "warn"
+missing_docs_in_private_items = "deny"
 
 [workspace.lints.rustdoc]
 bare_urls = "deny"

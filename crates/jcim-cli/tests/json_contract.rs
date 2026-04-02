@@ -20,6 +20,7 @@ fn cli_bin() -> &'static str {
 
 #[test]
 fn system_service_status_json_is_versioned_even_when_service_is_not_running() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let root = temp_root("json-service-status");
     let output = run_cli(&root, &["--json", "system", "service", "status"]);
     let json = parse_json("service status", &output.stdout);
@@ -33,6 +34,7 @@ fn system_service_status_json_is_versioned_even_when_service_is_not_running() {
 
 #[test]
 fn project_new_json_includes_version_and_kind_markers() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "project_new_json_includes_version_and_kind_markers",
     ) {
@@ -70,6 +72,7 @@ fn project_new_json_includes_version_and_kind_markers() {
 
 #[test]
 fn simulation_status_json_uses_the_list_kind() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported("simulation_status_json_uses_the_list_kind") {
         return;
     }
@@ -87,6 +90,7 @@ fn simulation_status_json_uses_the_list_kind() {
 
 #[test]
 fn json_failures_go_to_stderr_with_the_error_envelope() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "json_failures_go_to_stderr_with_the_error_envelope",
     ) {
@@ -111,6 +115,7 @@ fn json_failures_go_to_stderr_with_the_error_envelope() {
 
 #[test]
 fn json_success_and_error_flows_remain_stable_across_repeated_daemon_bootstrap() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "json_success_and_error_flows_remain_stable_across_repeated_daemon_bootstrap",
     ) {
@@ -147,6 +152,7 @@ fn json_success_and_error_flows_remain_stable_across_repeated_daemon_bootstrap()
 
 #[test]
 fn project_build_system_and_simulation_json_commands_cover_the_managed_surface() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "project_build_system_and_simulation_json_commands_cover_the_managed_surface",
     ) {
@@ -368,6 +374,7 @@ fn project_build_system_and_simulation_json_commands_cover_the_managed_surface()
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn card_json_commands_cover_the_mock_reader_surface() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "card_json_commands_cover_the_mock_reader_surface",
     ) {

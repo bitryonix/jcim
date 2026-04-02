@@ -133,6 +133,7 @@ impl JcimApp {
         Ok(summary)
     }
 
+    /// Resolve the CAP path to install, rebuilding artifacts first when project policy allows it.
     fn resolve_install_cap_path(&self, selector: &ProjectSelectorInput) -> Result<PathBuf> {
         let resolved = self.resolve_project(selector)?;
         if let Some(cap_path) = &resolved.config.card.default_cap_path {
@@ -162,5 +163,201 @@ impl JcimApp {
             metadata.cap_path.as_ref(),
             "the selected project does not provide a CAP artifact for card install",
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use async_trait::async_trait;
+
+    use super::*;
+    use crate::app::testsupport::{
+        load_test_app, load_test_app_with_adapter, project_selector, read_project_config,
+        temp_root, write_project_config,
+    };
+    use crate::model::{CardAppletSummary, CardPackageSummary};
+    use crate::registry::normalize_project_root;
+
+    #[derive(Default)]
+    struct RecordingAdapter {
+        seen_readers: Mutex<Vec<Option<String>>>,
+    }
+
+    #[async_trait]
+    impl PhysicalCardAdapter for RecordingAdapter {
+        async fn list_readers(&self, _user_config: &UserConfig) -> Result<Vec<CardReaderSummary>> {
+            Ok(vec![CardReaderSummary {
+                name: "Adapter Reader".to_string(),
+                card_present: true,
+            }])
+        }
+
+        async fn card_status(
+            &self,
+            _user_config: &UserConfig,
+            reader_name: Option<&str>,
+        ) -> Result<CardStatusSummary> {
+            self.seen_readers
+                .lock()
+                .expect("seen readers")
+                .push(reader_name.map(str::to_string));
+            let selected_aid = Aid::from_hex("A000000003000000").expect("aid");
+            Ok(CardStatusSummary {
+                reader_name: reader_name.unwrap_or_default().to_string(),
+                card_present: true,
+                atr: Some(Atr::parse(&hex::decode("3B800100").expect("atr")).expect("parse atr")),
+                active_protocol: Some(ProtocolParameters::from_atr(
+                    &Atr::parse(&hex::decode("3B800100").expect("atr")).expect("parse atr"),
+                )),
+                iso_capabilities: IsoCapabilities::default(),
+                session_state: IsoSessionState {
+                    selected_aid: Some(selected_aid),
+                    ..IsoSessionState::default()
+                },
+                lines: vec!["status".to_string()],
+            })
+        }
+
+        async fn install_cap(
+            &self,
+            _user_config: &UserConfig,
+            _reader_name: Option<&str>,
+            _cap_path: &Path,
+        ) -> Result<Vec<String>> {
+            Ok(vec!["installed".to_string()])
+        }
+
+        async fn delete_item(
+            &self,
+            _user_config: &UserConfig,
+            _reader_name: Option<&str>,
+            _aid: &str,
+        ) -> Result<Vec<String>> {
+            Ok(vec!["deleted".to_string()])
+        }
+
+        async fn list_packages(
+            &self,
+            _user_config: &UserConfig,
+            _reader_name: Option<&str>,
+        ) -> Result<CardPackageInventory> {
+            Ok(CardPackageInventory {
+                reader_name: String::new(),
+                packages: vec![CardPackageSummary {
+                    aid: "A000000001".to_string(),
+                    description: "demo".to_string(),
+                }],
+                output_lines: vec!["pkg".to_string()],
+            })
+        }
+
+        async fn list_applets(
+            &self,
+            _user_config: &UserConfig,
+            _reader_name: Option<&str>,
+        ) -> Result<CardAppletInventory> {
+            Ok(CardAppletInventory {
+                reader_name: String::new(),
+                applets: vec![CardAppletSummary {
+                    aid: "A000000002".to_string(),
+                    description: "demo".to_string(),
+                }],
+                output_lines: vec!["app".to_string()],
+            })
+        }
+
+        async fn transmit_apdu(
+            &self,
+            _user_config: &UserConfig,
+            _reader_name: Option<&str>,
+            _apdu_hex: &str,
+        ) -> Result<String> {
+            Ok("9000".to_string())
+        }
+
+        async fn reset_card(
+            &self,
+            _user_config: &UserConfig,
+            _reader_name: Option<&str>,
+        ) -> Result<String> {
+            Ok("3B800100".to_string())
+        }
+    }
+
+    #[tokio::test]
+    async fn card_service_helpers_use_default_readers_and_fill_inventory_names() {
+        let root = temp_root("inventory-reader");
+        let adapter = Arc::new(RecordingAdapter::default());
+        let app = load_test_app_with_adapter(&root, adapter.clone());
+        app.state
+            .persist_user_config(|config| {
+                config.default_reader = Some("Configured Reader".to_string());
+            })
+            .expect("persist user config");
+
+        let status = app.card_status(None).await.expect("card status");
+        let packages = app.list_packages(None).await.expect("packages");
+        let applets = app.list_applets(None).await.expect("applets");
+
+        assert_eq!(status.reader_name, "Configured Reader");
+        assert_eq!(packages.reader_name, "Configured Reader");
+        assert_eq!(applets.reader_name, "Configured Reader");
+        assert_eq!(
+            adapter
+                .seen_readers
+                .lock()
+                .expect("seen readers")
+                .as_slice(),
+            &[Some("Configured Reader".to_string())]
+        );
+        assert_eq!(
+            app.card_session_state(None)
+                .expect("session state")
+                .selected_aid,
+            status.session_state.selected_aid
+        );
+
+        let reset = app.reset_card_summary(None).await.expect("reset");
+        assert!(reset.atr.is_some());
+        assert_eq!(
+            app.card_session_state(None).expect("reset session"),
+            reset.session_state
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn resolve_install_cap_path_prefers_explicit_card_cap_path() {
+        let root = temp_root("inventory-cap-path");
+        let app = load_test_app(&root);
+        let project_root = root.join("demo");
+        app.create_project("Demo", &project_root)
+            .expect("create project");
+        let selector = project_selector(&project_root);
+        let (_, artifacts, _) = app.build_project(&selector).expect("build project");
+        let cap_artifact = artifacts
+            .iter()
+            .find(|artifact| artifact.kind == "cap")
+            .expect("cap artifact");
+        let normalized_root = normalize_project_root(&project_root).expect("normalize root");
+        let relative_cap = cap_artifact
+            .path
+            .strip_prefix(&normalized_root)
+            .expect("relative cap path")
+            .to_path_buf();
+
+        let mut config = read_project_config(&project_root);
+        config.card.default_cap_path = Some(relative_cap.clone());
+        write_project_config(&project_root, &config);
+
+        let resolved = app
+            .resolve_install_cap_path(&selector)
+            .expect("resolve explicit cap path");
+        assert_eq!(resolved, normalized_root.join(relative_cap));
+
+        let _ = std::fs::remove_dir_all(root);
     }
 }

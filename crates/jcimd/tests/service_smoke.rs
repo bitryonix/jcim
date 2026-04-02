@@ -20,6 +20,7 @@ use jcim_config::project::ManagedPaths;
 
 #[tokio::test]
 async fn service_serves_overview_over_uds() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported("service_serves_overview_over_uds") {
         return;
     }

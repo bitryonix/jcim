@@ -7,6 +7,7 @@ use super::components::{
     parse_import_component, parse_version, read_component, read_manifest, read_optional_component,
 };
 
+/// Parse one CAP archive into the stable `CapPackage` model exposed by this crate.
 pub(super) fn parse_cap_package(bytes: Vec<u8>) -> Result<CapPackage> {
     let archive = parse_zip_entries(&bytes)?;
     let manifest = read_manifest(&archive);

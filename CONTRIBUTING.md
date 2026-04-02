@@ -31,7 +31,17 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo test --workspace --doc
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items
 ```
+
+The clippy pass now enforces both public-doc and maintained private-item rustdoc coverage as part
+of the normal `-D warnings` bar. Approved exceptions are intentionally narrow:
+
+- generated protobuf bindings in `crates/jcim-api/src/lib.rs`
+- the standards-shaped ISO 7816 surface in `crates/jcim-core/src/iso7816/mod.rs`
+- support-code internals such as example-only code, `#[cfg(test)]` modules, the backend JSON
+  wire-mirror helpers in `crates/jcim-backends/src/backend/reply.rs`, and the mock physical-card
+  adapter internals
 
 Targeted contract/governance checks that are expected to stay review-blocking:
 
@@ -52,6 +62,7 @@ For the final publishing pass, also run:
 cargo test -p jcim-api --test descriptor_contract
 cargo test --workspace --doc
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items
 ```
 
 ## Compatibility Rules

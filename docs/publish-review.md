@@ -18,6 +18,8 @@ All reviewed docs were checked against these maintained rules:
   documented as CLI flags
 - architecture posture: simulator-first, service-first, transport-neutral `jcim-app`, final 0.3
   synchronous `AppState` store-helper model
+- maintained private rustdoc posture: enforced for product code, with narrow documented exceptions
+  for generated bindings, standards-shaped ISO 7816 models, and explicit support-code internals
 
 ## Legends
 
@@ -134,7 +136,7 @@ Crate README Rust snippets that are not deterministic shell workflows are intent
 
 ## Inline Rustdoc Review
 
-Reviewed public rustdoc surfaces:
+Reviewed rustdoc surfaces:
 
 - `crates/jcim-api/src/lib.rs`
 - `crates/jcim-app/src/lib.rs`
@@ -143,6 +145,8 @@ Reviewed public rustdoc surfaces:
 - `crates/jcim-sdk/src/lib.rs`
 - `crates/jcim-sdk/src/connection.rs`
 - `crates/jcimd/src/lib.rs`
+- maintained private product-code modules in `jcim-app`, `jcim-sdk`, `jcim-cli`, `jcimd`,
+  `jcim-config`, `jcim-cap`, and `jcim-core::globalplatform`
 
 Results:
 
@@ -152,11 +156,20 @@ Results:
   maintained workflow
 - internal comments reviewed in touched areas remain aligned with the final invariants:
   no guard across `.await`, clone handles before async work, reserve -> startup -> commit/fail
+- maintained private-item rustdoc is now enforced by the normal workspace clippy bar rather than a
+  warning-only side check
+- approved private-doc exceptions are limited to:
+  - generated protobuf bindings in `crates/jcim-api/src/lib.rs`
+  - the standards-shaped ISO 7816 surface in `crates/jcim-core/src/iso7816/mod.rs`
+  - support-code internals such as example-private code, `#[cfg(test)]` modules, the backend JSON
+    wire-mirror helpers in `crates/jcim-backends/src/backend/reply.rs`, and the mock
+    physical-card adapter internals
 
 Rustdoc gate for this pass:
 
 - `cargo test --workspace --doc`
 - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`
+- `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items`
 
 ## Unresolved Issues
 
@@ -179,6 +192,7 @@ Passed in this publishing pass:
 - `cargo test -p jcimd --test runtime_cleanup -- --test-threads=1`
 - `cargo test -p jcim-config --test third_party_governance`
 - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`
+- `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items`
 
 ## Publish Verdict
 

@@ -23,6 +23,7 @@ pub fn parse_get_status(kind: RegistryKind, response: &ResponseApdu) -> Result<G
     })
 }
 
+/// Decode the nested registry-entry TLVs inside a `GET STATUS` payload.
 fn parse_registry_entries(kind: RegistryKind, input: &[u8]) -> Result<Vec<RegistryEntry>> {
     let top_level = parse_tlvs(input)?;
     let mut entries = Vec::new();
@@ -90,12 +91,16 @@ fn parse_registry_entries(kind: RegistryKind, input: &[u8]) -> Result<Vec<Regist
     Ok(entries)
 }
 
+/// Minimal BER-TLV node used while decoding `GET STATUS` responses.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct BerTlv {
+    /// Encoded BER-TLV tag value.
     tag: u32,
+    /// Raw BER-TLV value bytes.
     value: Vec<u8>,
 }
 
+/// Parse every BER-TLV from one contiguous byte slice.
 fn parse_tlvs(input: &[u8]) -> Result<Vec<BerTlv>> {
     let mut offset = 0;
     let mut tlvs = Vec::new();
@@ -107,6 +112,7 @@ fn parse_tlvs(input: &[u8]) -> Result<Vec<BerTlv>> {
     Ok(tlvs)
 }
 
+/// Parse one BER-TLV and return the decoded node plus consumed byte count.
 fn parse_tlv(input: &[u8]) -> Result<(BerTlv, usize)> {
     if input.len() < 2 {
         return Err(JcimError::Gp(
@@ -128,6 +134,7 @@ fn parse_tlv(input: &[u8]) -> Result<(BerTlv, usize)> {
     Ok((BerTlv { tag, value }, offset))
 }
 
+/// Parse one BER-TLV tag, including multi-byte high-tag-number encodings.
 fn parse_tag(input: &[u8]) -> Result<(u32, usize)> {
     let mut tag = u32::from(
         *input
@@ -150,6 +157,7 @@ fn parse_tag(input: &[u8]) -> Result<(u32, usize)> {
     Ok((tag, consumed))
 }
 
+/// Parse one BER-TLV length field, supporting short form and up to two-byte long form.
 fn parse_length(input: &[u8]) -> Result<(usize, usize)> {
     let first = *input
         .first()

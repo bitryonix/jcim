@@ -7,12 +7,15 @@
 //! # Verification
 //! Runtime ownership, stale-socket cleanup, and direct binary startup are guarded by
 //! `crates/jcimd/tests/runtime_cleanup.rs` and `crates/jcimd/tests/binary_smoke.rs`.
-#![allow(clippy::missing_docs_in_private_items)]
 #![forbid(unsafe_code)]
 
+/// Small blocking helpers used by the daemon runtime.
 mod blocking;
+/// In-process gRPC adapter implementations for the local app façade.
 mod rpc;
+/// Unix-domain socket binding and runtime-metadata ownership helpers.
 mod server;
+/// Translation helpers between protobuf transport types and domain models.
 mod translate;
 
 pub use server::{serve_local_service, serve_local_service_until_shutdown};

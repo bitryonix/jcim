@@ -1,6 +1,7 @@
 use super::*;
 
 impl AppState {
+    /// Return retained build events for one project in insertion order.
     pub(crate) fn build_events_for(&self, project_id: &str) -> Result<Vec<EventLine>> {
         let events = self
             .build_events
@@ -12,6 +13,7 @@ impl AppState {
         Ok(events.into_iter().collect())
     }
 
+    /// Append one retained build event for a project when the store is still available.
     pub(crate) fn remember_build_event(
         &self,
         project_id: &str,

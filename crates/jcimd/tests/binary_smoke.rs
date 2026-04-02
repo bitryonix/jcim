@@ -14,6 +14,7 @@ use jcim_config::project::ManagedPaths;
 
 #[test]
 fn jcimd_binary_starts_and_creates_its_socket() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported("jcimd_binary_starts_and_creates_its_socket")
     {
         return;

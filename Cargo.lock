@@ -764,6 +764,8 @@ name = "jcim-backends"
 version = "0.3.0"
 dependencies = [
  "hex",
+ "jcim-app",
+ "jcim-build",
  "jcim-cap",
  "jcim-config",
  "jcim-core",

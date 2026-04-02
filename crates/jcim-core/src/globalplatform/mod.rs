@@ -1,11 +1,14 @@
 //! GlobalPlatform command builders and response parsers.
 
-#![allow(clippy::missing_docs_in_private_items)]
-
+/// GlobalPlatform APDU command builders.
 mod commands;
+/// Lifecycle-state enums shared by GlobalPlatform helpers.
 mod lifecycle;
+/// BER-TLV and response parsers for GlobalPlatform commands.
 mod parsers;
+/// Secure-channel request builders and response summaries.
 mod secure_channel;
+/// `GET STATUS` registry models and selectors.
 mod status;
 
 pub use commands::*;
@@ -14,6 +17,8 @@ pub use parsers::*;
 pub use secure_channel::*;
 pub use status::*;
 
+// Tests here focus on compact protocol examples rather than exhaustive rustdoc for each helper.
+#[allow(clippy::missing_docs_in_private_items)]
 #[cfg(test)]
 mod tests {
     use crate::aid::Aid;

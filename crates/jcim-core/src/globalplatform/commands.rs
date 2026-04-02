@@ -8,8 +8,11 @@ use super::status::{GetStatusOccurrence, RegistryKind};
 /// GlobalPlatform issuer security domain AID as defined by the public card specification.
 pub const ISSUER_SECURITY_DOMAIN_AID: [u8; 8] = [0xA0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00];
 
+/// GlobalPlatform class byte used by the maintained command builders in this module.
 const CLA_GLOBAL_PLATFORM: u8 = 0x80;
+/// Instruction byte for `GET STATUS`.
 const INS_GET_STATUS: u8 = 0xF2;
+/// Instruction byte for `SET STATUS`.
 const INS_SET_STATUS: u8 = 0xF0;
 
 /// Build one ISO `SELECT` for the issuer security domain.

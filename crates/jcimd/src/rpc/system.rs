@@ -41,3 +41,52 @@ impl SystemService for LocalRpc {
         Ok(Response::new(service_status_response(status)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tonic::Request;
+
+    use jcim_api::v0_3::system_service_server::SystemService;
+
+    use super::*;
+    use crate::rpc::testsupport::{create_demo_project, load_rpc, temp_root};
+
+    #[tokio::test]
+    async fn system_rpc_maps_setup_doctor_and_service_status() {
+        let root = temp_root("system");
+        let rpc = load_rpc(&root);
+        let _project_root = create_demo_project(&rpc, &root, "Demo");
+
+        let setup = SystemService::setup_toolchains(
+            &rpc,
+            Request::new(SetupToolchainsRequest {
+                java_bin: "/custom/java".to_string(),
+            }),
+        )
+        .await
+        .expect("setup toolchains")
+        .into_inner();
+        let doctor = SystemService::doctor(&rpc, Request::new(Empty {}))
+            .await
+            .expect("doctor")
+            .into_inner();
+        let status = SystemService::get_service_status(&rpc, Request::new(Empty {}))
+            .await
+            .expect("service status")
+            .into_inner();
+
+        assert!(setup.config_path.ends_with("config.toml"));
+        assert!(setup.message.contains("saved machine-local JCIM settings"));
+        assert!(
+            doctor
+                .lines
+                .iter()
+                .any(|line| line.starts_with("Effective Java runtime: "))
+        );
+        assert!(status.running);
+        assert_eq!(status.known_project_count, 1);
+        assert!(status.socket_path.ends_with(".sock"));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+}

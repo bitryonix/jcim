@@ -16,6 +16,7 @@ fn cli_bin() -> &'static str {
 
 #[test]
 fn quickstart_commands_from_docs_run_from_repo_root() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "quickstart_commands_from_docs_run_from_repo_root",
     ) {
@@ -73,6 +74,7 @@ fn quickstart_commands_from_docs_run_from_repo_root() {
 
 #[test]
 fn unsupported_host_java_override_from_docs_is_persisted_in_config() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "unsupported_host_java_override_from_docs_is_persisted_in_config",
     ) {
@@ -92,6 +94,7 @@ fn unsupported_host_java_override_from_docs_is_persisted_in_config() {
 
 #[test]
 fn satochip_cli_commands_from_docs_run_from_repo_root() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if !socket_support::unix_domain_sockets_supported(
         "satochip_cli_commands_from_docs_run_from_repo_root",
     ) {
@@ -130,6 +133,7 @@ fn satochip_cli_commands_from_docs_run_from_repo_root() {
 
 #[test]
 fn hardware_gated_doc_commands_run_when_enabled() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     if std::env::var("JCIM_HARDWARE_TESTS").ok().as_deref() != Some("1") {
         return;
     }

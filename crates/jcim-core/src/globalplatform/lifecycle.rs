@@ -17,6 +17,7 @@ pub enum CardLifeCycle {
 }
 
 impl CardLifeCycle {
+    /// Return the state-control byte used by GlobalPlatform `SET STATUS`.
     pub(crate) fn state_control(self) -> u8 {
         match self {
             Self::OpReady => 0x01,
@@ -38,6 +39,7 @@ pub enum LockTransition {
 }
 
 impl LockTransition {
+    /// Return the state-control byte used by GlobalPlatform `SET STATUS`.
     pub(crate) fn state_control(self) -> u8 {
         match self {
             Self::Lock => 0x80,

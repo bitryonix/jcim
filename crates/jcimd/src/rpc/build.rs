@@ -54,6 +54,9 @@ impl BuildService for LocalRpc {
         .await?;
         let events = blocking(move || app.build_events(&selector)).await?;
         let project_id = project.project.project_id;
+        // `tonic` requires `Result<T, Status>` stream items here, so boxing the error would only
+        // add noise around a transport-mandated signature.
+        #[allow(clippy::result_large_err)]
         let stream = tokio_stream::iter(events.into_iter().map(move |event| {
             Ok(BuildEvent {
                 project_id: project_id.clone(),
@@ -62,5 +65,56 @@ impl BuildService for LocalRpc {
             })
         }));
         Ok(Response::new(Box::pin(stream)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio_stream::StreamExt;
+    use tonic::Request;
+
+    use jcim_api::v0_3::build_service_server::BuildService;
+
+    use super::*;
+    use crate::rpc::testsupport::{create_demo_project, load_rpc, project_selector, temp_root};
+
+    #[tokio::test]
+    async fn build_rpc_maps_build_artifacts_and_event_streams() {
+        let root = temp_root("build");
+        let rpc = load_rpc(&root);
+        let project_root = create_demo_project(&rpc, &root, "Demo");
+
+        let built = BuildService::build_project(
+            &rpc,
+            Request::new(BuildProjectRequest {
+                project: Some(project_selector(&project_root)),
+            }),
+        )
+        .await
+        .expect("build project")
+        .into_inner();
+        let artifacts =
+            BuildService::get_artifacts(&rpc, Request::new(project_selector(&project_root)))
+                .await
+                .expect("get artifacts")
+                .into_inner();
+        let mut stream =
+            BuildService::stream_build_events(&rpc, Request::new(project_selector(&project_root)))
+                .await
+                .expect("stream build events")
+                .into_inner();
+        let first_event = stream
+            .next()
+            .await
+            .expect("first event")
+            .expect("build event");
+
+        assert!(built.project.is_some());
+        assert!(!built.artifacts.is_empty());
+        assert_eq!(artifacts.artifacts.len(), built.artifacts.len());
+        assert!(!first_event.project_id.is_empty());
+        assert!(!first_event.message.is_empty());
+
+        let _ = std::fs::remove_dir_all(root);
     }
 }

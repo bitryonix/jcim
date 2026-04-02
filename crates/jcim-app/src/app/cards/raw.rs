@@ -42,6 +42,7 @@ impl JcimApp {
         })
     }
 
+    /// Route one card command through GP secure transport when a tracked GP session requires it.
     async fn transmit_card_command_with_optional_gp_auth(
         &self,
         user_config: &UserConfig,
@@ -81,6 +82,7 @@ impl JcimApp {
     }
 }
 
+/// Return whether the tracked GP session should wrap this command in secure transport.
 fn should_use_gp_secure_transport(
     command: &CommandApdu,
     secure_channel: Option<&globalplatform::EstablishedSecureChannel>,

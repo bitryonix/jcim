@@ -74,3 +74,97 @@ impl JcimApp {
         Ok(SecureMessagingSummary { session_state })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use jcim_core::iso7816::SecureMessagingProtocol;
+
+    use crate::app::testsupport::{load_test_app, temp_root};
+
+    #[tokio::test]
+    async fn card_iso_helpers_use_default_reader_and_track_channel_and_secure_messaging() {
+        let root = temp_root("card-iso");
+        let app = load_test_app(&root);
+        app.state
+            .persist_user_config(|config| {
+                config.default_reader = Some("Configured Reader".to_string());
+            })
+            .expect("persist user config");
+
+        let opened = app
+            .manage_card_channel(None, true, None)
+            .await
+            .expect("open logical channel");
+        assert_eq!(opened.channel_number, Some(1));
+        assert!(opened.response.is_success());
+        assert!(
+            opened
+                .session_state
+                .open_channels
+                .iter()
+                .any(|channel| channel.channel_number == 1)
+        );
+
+        let via_default = app
+            .card_session_state(None)
+            .expect("session state by default");
+        let via_explicit = app
+            .card_session_state(Some("Configured Reader"))
+            .expect("session state by explicit reader");
+        assert_eq!(via_default, via_explicit);
+
+        let opened_sm = app
+            .open_card_secure_messaging(
+                None,
+                Some(SecureMessagingProtocol::Iso7816),
+                Some(0x01),
+                Some("session-1".to_string()),
+            )
+            .expect("open secure messaging");
+        assert!(opened_sm.session_state.secure_messaging.active);
+        assert_eq!(
+            opened_sm.session_state.secure_messaging.protocol,
+            Some(SecureMessagingProtocol::Iso7816)
+        );
+        assert_eq!(
+            opened_sm
+                .session_state
+                .secure_messaging
+                .session_id
+                .as_deref(),
+            Some("session-1")
+        );
+
+        let advanced = app
+            .advance_card_secure_messaging(None, 2)
+            .expect("advance secure messaging");
+        assert_eq!(advanced.session_state.secure_messaging.command_counter, 2);
+
+        let closed_sm = app
+            .close_card_secure_messaging(None)
+            .expect("close secure messaging");
+        assert!(!closed_sm.session_state.secure_messaging.active);
+        assert_eq!(
+            app.card_session_state(None)
+                .expect("session state after secure messaging close")
+                .secure_messaging,
+            closed_sm.session_state.secure_messaging
+        );
+
+        let closed_channel = app
+            .manage_card_channel(None, false, Some(1))
+            .await
+            .expect("close logical channel");
+        assert_eq!(closed_channel.channel_number, Some(1));
+        assert!(closed_channel.response.is_success());
+        assert!(
+            closed_channel
+                .session_state
+                .open_channels
+                .iter()
+                .all(|channel| channel.channel_number != 1)
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+}

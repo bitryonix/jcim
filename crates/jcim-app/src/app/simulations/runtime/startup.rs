@@ -22,6 +22,7 @@ impl JcimApp {
             .await
     }
 
+    /// Resolve a project into the runtime configuration needed for one simulation launch.
     fn prepare_project_simulation(
         &self,
         selector: &ProjectSelectorInput,
@@ -75,6 +76,7 @@ impl JcimApp {
         })
     }
 
+    /// Reserve state, perform backend startup, and commit the resulting running or failed record.
     async fn start_prepared_simulation(
         &self,
         prepared: PreparedSimulation,
@@ -105,6 +107,7 @@ impl JcimApp {
         }
     }
 
+    /// Execute the backend startup handshake and convert its snapshot into a running record.
     async fn run_prepared_simulation_start(
         &self,
         prepared: &PreparedSimulation,
@@ -187,6 +190,7 @@ impl JcimApp {
         Ok(record)
     }
 
+    /// Assemble the runtime config passed to the managed simulator backend.
     fn runtime_config_for_simulation(
         &self,
         profile_id: jcim_core::model::CardProfileId,
@@ -212,6 +216,7 @@ impl JcimApp {
         Ok(runtime_config)
     }
 
+    /// Resolve or build the artifacts required to start a simulation for one project.
     fn resolve_simulation_artifacts(
         &self,
         project_root: &Path,
@@ -237,11 +242,150 @@ impl JcimApp {
         validate_simulation_artifacts(project_root, outcome.metadata)
     }
 
+    /// Allocate the next locally unique simulation id from the app state counter.
     fn next_simulation_id(&self) -> String {
         let id = self
             .state
             .next_simulation_id
             .fetch_add(1, Ordering::Relaxed);
         format!("sim-{id:016x}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use jcim_build::{ArtifactMetadata, BuildAppletMetadata};
+    use jcim_config::project::BuildKind;
+
+    use super::*;
+    use crate::app::testsupport::{
+        acquire_local_service_lock, load_test_app, project_selector, read_project_config,
+        simulation_selector, temp_root, write_project_config,
+    };
+
+    #[test]
+    fn resolve_simulation_artifacts_uses_cached_metadata_when_auto_build_is_disabled() {
+        let _service_lock = acquire_local_service_lock();
+        let root = temp_root("sim-artifacts-cache");
+        let app = load_test_app(&root);
+        let project_root = root.join("demo");
+        app.create_project("Demo", &project_root)
+            .expect("create project");
+        let selector = project_selector(&project_root);
+        let _ = app.build_project(&selector).expect("build project");
+
+        let mut config = read_project_config(&project_root);
+        config.simulator.auto_build = false;
+        write_project_config(&project_root, &config);
+
+        let resolved = app.resolve_project(&selector).expect("resolve project");
+        let metadata = app
+            .resolve_simulation_artifacts(&resolved.project_root, &resolved.config)
+            .expect("resolve cached metadata");
+
+        assert!(metadata.cap_path.is_some());
+        assert!(project_root.join(&metadata.classes_path).exists());
+        assert!(
+            project_root
+                .join(&metadata.simulator_metadata_path)
+                .exists()
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn validate_simulation_artifacts_fails_closed_when_required_files_are_missing() {
+        let project_root = temp_root("sim-artifacts-missing");
+        std::fs::create_dir_all(project_root.join("build/classes")).expect("create classes dir");
+        std::fs::create_dir_all(project_root.join("deps")).expect("create deps dir");
+        std::fs::write(project_root.join("build/demo.cap"), []).expect("write cap");
+        std::fs::write(project_root.join("build/simulator.json"), "{}").expect("write metadata");
+        std::fs::write(project_root.join("deps/runtime.jar"), []).expect("write runtime");
+
+        let metadata = ArtifactMetadata {
+            build_kind: BuildKind::Native,
+            profile: CardProfileId::Classic304,
+            package_name: "com.jcim.demo".to_string(),
+            package_aid: Aid::from_slice(&[0xF0, 0x00, 0x00, 0x00, 0x01]).expect("aid"),
+            version: "1.0".to_string(),
+            applets: vec![BuildAppletMetadata {
+                class_name: "com.jcim.demo.DemoApplet".to_string(),
+                aid: Aid::from_slice(&[0xF0, 0x00, 0x00, 0x00, 0x01, 0x01]).expect("aid"),
+            }],
+            cap_path: Some(PathBuf::from("build/demo.cap")),
+            classes_path: PathBuf::from("build/classes"),
+            runtime_classpath: vec![PathBuf::from("deps/runtime.jar")],
+            simulator_metadata_path: PathBuf::from("build/simulator.json"),
+            source_fingerprint: "fingerprint".to_string(),
+        };
+
+        validate_simulation_artifacts(&project_root, metadata.clone()).expect("valid metadata");
+
+        std::fs::remove_file(project_root.join("build/demo.cap")).expect("remove cap");
+        let cap_error = validate_simulation_artifacts(&project_root, metadata.clone())
+            .expect_err("missing cap should fail");
+        assert!(
+            cap_error
+                .to_string()
+                .contains("expected CAP artifact is missing")
+        );
+
+        std::fs::write(project_root.join("build/demo.cap"), []).expect("restore cap");
+        std::fs::remove_dir_all(project_root.join("build/classes")).expect("remove classes");
+        let classes_error = validate_simulation_artifacts(&project_root, metadata.clone())
+            .expect_err("missing classes should fail");
+        assert!(
+            classes_error
+                .to_string()
+                .contains("expected compiled classes are missing")
+        );
+
+        std::fs::create_dir_all(project_root.join("build/classes")).expect("restore classes");
+        std::fs::remove_file(project_root.join("deps/runtime.jar")).expect("remove runtime jar");
+        let runtime_error = validate_simulation_artifacts(&project_root, metadata)
+            .expect_err("missing runtime dependency should fail");
+        assert!(
+            runtime_error
+                .to_string()
+                .contains("expected simulator runtime classpath entry is missing")
+        );
+
+        let _ = std::fs::remove_dir_all(project_root);
+    }
+
+    #[tokio::test]
+    async fn start_project_simulation_runs_with_reset_after_start_enabled() {
+        let _service_lock = acquire_local_service_lock();
+        let root = temp_root("sim-reset-after-start");
+        let app = load_test_app(&root);
+        let project_root = root.join("demo");
+        app.create_project("Demo", &project_root)
+            .expect("create project");
+        let selector = project_selector(&project_root);
+
+        let mut config = read_project_config(&project_root);
+        config.simulator.reset_after_start = true;
+        write_project_config(&project_root, &config);
+
+        let simulation = app
+            .start_project_simulation(&selector)
+            .await
+            .expect("start simulation");
+        let events = app
+            .simulation_events(&simulation_selector(simulation.simulation_id.clone()))
+            .expect("simulation events");
+
+        assert_eq!(simulation.status, SimulationStatusKind::Running);
+        assert!(
+            events
+                .iter()
+                .any(|event| event.message.contains("simulation started"))
+        );
+
+        let _ = app
+            .stop_simulation(&simulation_selector(simulation.simulation_id))
+            .await;
+        let _ = std::fs::remove_dir_all(root);
     }
 }

@@ -1,7 +1,9 @@
 use jcim_api::v0_3::simulator_service_client::SimulatorServiceClient;
 use jcim_api::v0_3::{
-    ManageChannelRequest, OpenGpSecureChannelRequest, SecureMessagingAdvanceRequest,
-    SecureMessagingRequest, StartSimulationRequest, TransmitApduRequest, TransmitRawApduRequest,
+    GetSimulationResponse, ManageChannelRequest, ManageChannelResponse, OpenGpSecureChannelRequest,
+    SecureMessagingAdvanceRequest, SecureMessagingRequest, SecureMessagingResponse,
+    StartSimulationRequest, StartSimulationResponse, StopSimulationResponse, TransmitApduRequest,
+    TransmitRawApduRequest, TransmitRawApduResponse,
 };
 
 use jcim_core::aid::Aid;
@@ -29,41 +31,29 @@ impl JcimClient {
         let request = StartSimulationRequest {
             project: Some(project_selector(&project)),
         };
-        let simulation = SimulatorServiceClient::new(self.channel.clone())
+        let response = SimulatorServiceClient::new(self.channel.clone())
             .start_simulation(request)
             .await?
-            .into_inner()
-            .simulation
-            .ok_or_else(|| {
-                JcimSdkError::InvalidResponse("service returned no simulation".to_string())
-            })?;
-        simulation_summary(simulation)
+            .into_inner();
+        started_simulation_summary(response)
     }
 
     /// Get one simulation by id.
     pub async fn get_simulation(&self, simulation: SimulationRef) -> Result<SimulationSummary> {
-        let simulation = SimulatorServiceClient::new(self.channel.clone())
+        let response = SimulatorServiceClient::new(self.channel.clone())
             .get_simulation(simulation_selector(simulation.simulation_id))
             .await?
-            .into_inner()
-            .simulation
-            .ok_or_else(|| {
-                JcimSdkError::InvalidResponse("service returned no simulation".to_string())
-            })?;
-        simulation_summary(simulation)
+            .into_inner();
+        fetched_simulation_summary(response)
     }
 
     /// Stop one simulation.
     pub async fn stop_simulation(&self, simulation: SimulationRef) -> Result<SimulationSummary> {
-        let simulation = SimulatorServiceClient::new(self.channel.clone())
+        let response = SimulatorServiceClient::new(self.channel.clone())
             .stop_simulation(simulation_selector(simulation.simulation_id))
             .await?
-            .into_inner()
-            .simulation
-            .ok_or_else(|| {
-                JcimSdkError::InvalidResponse("service returned no simulation".to_string())
-            })?;
-        simulation_summary(simulation)
+            .into_inner();
+        stopped_simulation_summary(response)
     }
 
     /// Return retained simulation event lines.
@@ -124,11 +114,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(ApduExchangeSummary {
-            command: CommandApdu::parse(&response.apdu)?,
-            response: response_apdu_from_proto(response.response)?,
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        raw_simulation_exchange_summary(response)
     }
 
     /// Open or close one logical channel on a running simulation.
@@ -146,11 +132,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(ManageChannelSummary {
-            channel_number: response.channel_number.map(|value| value as u8),
-            response: response_apdu_from_proto(response.response)?,
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        simulation_manage_channel_summary(response)
     }
 
     /// Mark secure messaging as active for one running simulation.
@@ -172,9 +154,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(SecureMessagingSummary {
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        simulation_secure_messaging_summary(response)
     }
 
     /// Advance the secure-messaging command counter for one running simulation.
@@ -190,9 +170,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(SecureMessagingSummary {
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        simulation_secure_messaging_summary(response)
     }
 
     /// Clear the tracked secure-messaging state for one running simulation.
@@ -204,9 +182,7 @@ impl JcimClient {
             .close_secure_messaging(simulation_selector(simulation.simulation_id))
             .await?
             .into_inner();
-        Ok(SecureMessagingSummary {
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        simulation_secure_messaging_summary(response)
     }
 
     /// Open one typed GP secure channel on a running simulation.
@@ -236,9 +212,7 @@ impl JcimClient {
             .close_gp_secure_channel(simulation_selector(simulation.simulation_id))
             .await?
             .into_inner();
-        Ok(SecureMessagingSummary {
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        simulation_secure_messaging_summary(response)
     }
 
     /// Send one ISO/IEC 7816 `SELECT` by application identifier to a running simulation.
@@ -323,6 +297,7 @@ impl JcimClient {
         reset_summary_from_simulation_proto(response)
     }
 
+    /// Fetch one simulation summary and reject empty ids or non-running simulation targets for connections.
     pub(super) async fn validated_running_simulation(
         &self,
         simulation: SimulationRef,
@@ -340,5 +315,155 @@ impl JcimClient {
             )));
         }
         Ok(summary)
+    }
+}
+
+/// Decode one optional simulation payload and fail closed when the service omits it.
+fn simulation_from_proto(
+    simulation: Option<jcim_api::v0_3::SimulationInfo>,
+) -> Result<SimulationSummary> {
+    simulation
+        .ok_or_else(|| JcimSdkError::InvalidResponse("service returned no simulation".to_string()))
+        .and_then(simulation_summary)
+}
+
+/// Decode one simulation-start response into the stable SDK simulation summary.
+fn started_simulation_summary(response: StartSimulationResponse) -> Result<SimulationSummary> {
+    simulation_from_proto(response.simulation)
+}
+
+/// Decode one simulation-fetch response into the stable SDK simulation summary.
+fn fetched_simulation_summary(response: GetSimulationResponse) -> Result<SimulationSummary> {
+    simulation_from_proto(response.simulation)
+}
+
+/// Decode one simulation-stop response into the stable SDK simulation summary.
+fn stopped_simulation_summary(response: StopSimulationResponse) -> Result<SimulationSummary> {
+    simulation_from_proto(response.simulation)
+}
+
+/// Decode one raw simulation APDU exchange response into the unified SDK summary type.
+fn raw_simulation_exchange_summary(
+    response: TransmitRawApduResponse,
+) -> Result<ApduExchangeSummary> {
+    Ok(ApduExchangeSummary {
+        command: CommandApdu::parse(&response.apdu)?,
+        response: response_apdu_from_proto(response.response)?,
+        session_state: iso_session_state_from_proto(response.session_state)?,
+    })
+}
+
+/// Decode one simulation manage-channel response into the unified SDK summary type.
+fn simulation_manage_channel_summary(
+    response: ManageChannelResponse,
+) -> Result<ManageChannelSummary> {
+    Ok(ManageChannelSummary {
+        channel_number: response.channel_number.map(|value| value as u8),
+        response: response_apdu_from_proto(response.response)?,
+        session_state: iso_session_state_from_proto(response.session_state)?,
+    })
+}
+
+/// Decode one simulation secure-messaging response into the unified SDK summary type.
+fn simulation_secure_messaging_summary(
+    response: SecureMessagingResponse,
+) -> Result<SecureMessagingSummary> {
+    Ok(SecureMessagingSummary {
+        session_state: iso_session_state_from_proto(response.session_state)?,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use jcim_api::v0_3::{
+        IsoCapabilitiesInfo, IsoSessionStateInfo, ResponseApduFrame, SecureMessagingStateInfo,
+        SimulationInfo, SimulationStatus as ProtoSimulationStatus,
+    };
+
+    use super::*;
+
+    fn sample_simulation() -> SimulationInfo {
+        SimulationInfo {
+            simulation_id: "sim-1".to_string(),
+            project_id: "project-1".to_string(),
+            project_path: "/tmp/demo".to_string(),
+            status: ProtoSimulationStatus::Running as i32,
+            reader_name: "Reader".to_string(),
+            health: "ready".to_string(),
+            atr: None,
+            active_protocol: None,
+            iso_capabilities: Some(IsoCapabilitiesInfo::default()),
+            session_state: Some(IsoSessionStateInfo::default()),
+            package_count: 1,
+            applet_count: 1,
+            package_name: "com.jcim.demo".to_string(),
+            package_aid: "F000000001".to_string(),
+            recent_events: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn simulation_responses_require_payloads() {
+        let error = started_simulation_summary(StartSimulationResponse { simulation: None })
+            .expect_err("missing simulation payload should fail");
+        assert!(matches!(error, JcimSdkError::InvalidResponse(_)));
+        assert!(error.to_string().contains("service returned no simulation"));
+    }
+
+    #[test]
+    fn fetched_simulation_summary_decodes_simulation_payload() {
+        let summary = fetched_simulation_summary(GetSimulationResponse {
+            simulation: Some(sample_simulation()),
+        })
+        .expect("decode simulation");
+
+        assert_eq!(summary.simulation_id, "sim-1");
+        assert_eq!(summary.status, SimulationStatus::Running);
+    }
+
+    #[test]
+    fn simulation_manage_channel_summary_decodes_response_fields() {
+        let summary = simulation_manage_channel_summary(ManageChannelResponse {
+            channel_number: Some(2),
+            response: Some(ResponseApduFrame {
+                data: Vec::new(),
+                sw: 0x9000,
+                ..ResponseApduFrame::default()
+            }),
+            session_state: Some(IsoSessionStateInfo::default()),
+        })
+        .expect("decode manage channel summary");
+
+        assert_eq!(summary.channel_number, Some(2));
+        assert_eq!(summary.response.sw, 0x9000);
+    }
+
+    #[test]
+    fn raw_simulation_exchange_summary_decodes_command_and_session_state() {
+        let summary = raw_simulation_exchange_summary(TransmitRawApduResponse {
+            apdu: vec![0x00, 0xA4, 0x04, 0x00, 0x00],
+            response: Some(ResponseApduFrame {
+                data: Vec::new(),
+                sw: 0x9000,
+                ..ResponseApduFrame::default()
+            }),
+            session_state: Some(IsoSessionStateInfo {
+                secure_messaging: Some(SecureMessagingStateInfo::default()),
+                ..IsoSessionStateInfo::default()
+            }),
+        })
+        .expect("decode raw exchange");
+
+        assert_eq!(summary.command.to_bytes(), [0x00, 0xA4, 0x04, 0x00, 0x00]);
+        assert_eq!(summary.response.sw, 0x9000);
+    }
+
+    #[test]
+    fn simulation_secure_messaging_summary_defaults_missing_session_state() {
+        let summary = simulation_secure_messaging_summary(SecureMessagingResponse {
+            session_state: None,
+        })
+        .expect("missing session state should decode to default");
+        assert_eq!(summary.session_state, IsoSessionState::default());
     }
 }

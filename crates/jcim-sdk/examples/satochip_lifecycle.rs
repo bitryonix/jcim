@@ -1,6 +1,8 @@
 //! Source-backed Satochip lifecycle demo through the JCIM Rust SDK.
 
 #![forbid(unsafe_code)]
+// Example-local helpers intentionally prioritize a readable end-to-end flow over private-item
+// rustdoc on every transient variable and parser detail.
 #![allow(clippy::missing_docs_in_private_items)]
 
 use std::path::PathBuf;

@@ -1,5 +1,4 @@
 //! Project and machine-local path helpers.
-#![allow(clippy::missing_docs_in_private_items)]
 
 use crate::managed_files::write_regular_file_atomic;
 use jcim_core::error::{JcimError, Result};
@@ -192,10 +191,12 @@ impl ManagedPaths {
         &self.legacy_root
     }
 
+    /// Return the pre-0.3 legacy config file path under the one-root layout.
     fn legacy_config_path(&self) -> PathBuf {
         self.legacy_root.join(USER_CONFIG_FILE_NAME)
     }
 
+    /// Return the pre-0.3 legacy registry file path under the one-root layout.
     fn legacy_registry_path(&self) -> PathBuf {
         self.legacy_root.join(PROJECT_REGISTRY_FILE_NAME)
     }
@@ -229,6 +230,7 @@ pub fn resolve_project_path(project_root: &Path, path: &Path) -> PathBuf {
 }
 
 #[cfg(target_os = "macos")]
+/// Discover the managed JCIM path layout for macOS hosts.
 fn discover_macos_paths() -> Result<ManagedPaths> {
     let home = required_home("HOME is not set, so JCIM cannot resolve its managed directories")?;
     let root = home
@@ -261,6 +263,7 @@ fn discover_macos_paths() -> Result<ManagedPaths> {
 }
 
 #[cfg(target_os = "linux")]
+/// Discover the managed JCIM path layout for Linux hosts and XDG conventions.
 fn discover_linux_paths() -> Result<ManagedPaths> {
     let home = required_home("HOME is not set, so JCIM cannot resolve its managed directories")?;
     let config_home = env_path_or_default("XDG_CONFIG_HOME", home.join(".config"));
@@ -296,6 +299,7 @@ fn discover_linux_paths() -> Result<ManagedPaths> {
     })
 }
 
+/// Return the current `HOME` path or surface one managed-path discovery error.
 fn required_home(message: &str) -> Result<PathBuf> {
     env::var_os("HOME")
         .map(PathBuf::from)
@@ -303,10 +307,12 @@ fn required_home(message: &str) -> Result<PathBuf> {
 }
 
 #[cfg(target_os = "linux")]
+/// Return one Linux XDG path override or its default fallback path.
 fn env_path_or_default(var: &str, default: PathBuf) -> PathBuf {
     env::var_os(var).map(PathBuf::from).unwrap_or(default)
 }
 
+/// Copy one legacy config or registry file into the managed layout when the destination is still absent.
 fn migrate_legacy_file_if_missing(source: &Path, destination: &Path) -> Result<()> {
     if source == destination || destination.exists() || !source.exists() {
         return Ok(());

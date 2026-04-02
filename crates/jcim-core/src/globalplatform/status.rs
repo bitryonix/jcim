@@ -16,6 +16,7 @@ pub enum RegistryKind {
 }
 
 impl RegistryKind {
+    /// Return the `P1` selector byte used by GlobalPlatform `GET STATUS`.
     pub(crate) fn p1(self) -> u8 {
         match self {
             Self::IssuerSecurityDomain => 0x80,
@@ -36,6 +37,7 @@ pub enum GetStatusOccurrence {
 }
 
 impl GetStatusOccurrence {
+    /// Return the `P2` occurrence byte used by GlobalPlatform `GET STATUS`.
     pub(crate) fn p2(self) -> u8 {
         match self {
             Self::FirstOrAll => 0x02,

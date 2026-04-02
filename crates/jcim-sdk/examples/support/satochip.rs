@@ -1,3 +1,5 @@
+// This support module is example-only glue for the Satochip demos, so the maintained docs bar
+// applies to the example entrypoints rather than every private crypto helper and constant here.
 #![allow(clippy::missing_docs_in_private_items)]
 
 use std::io::Error;

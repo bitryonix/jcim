@@ -10,6 +10,8 @@ pub const JCIM_V0_3_DESCRIPTOR_SET: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/jcim-v0_3-descriptor.bin"));
 
 /// Generated protobuf and gRPC service definitions.
+// These bindings are generated code, so the maintained docs bar applies to the wrapper module
+// rather than every generated message field.
 #[allow(missing_docs)]
 #[allow(clippy::missing_docs_in_private_items)]
 pub mod v0_3 {

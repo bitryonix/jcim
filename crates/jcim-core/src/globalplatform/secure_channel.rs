@@ -161,6 +161,7 @@ pub fn establish_secure_channel(
     }
 }
 
+/// Parse one SCP02 `INITIALIZE UPDATE` payload into the typed response model.
 fn parse_initialize_update_scp02(input: &[u8]) -> Result<InitializeUpdateResponse> {
     if input.len() != 28 {
         return Err(JcimError::Gp(format!(
@@ -182,6 +183,7 @@ fn parse_initialize_update_scp02(input: &[u8]) -> Result<InitializeUpdateRespons
     })
 }
 
+/// Parse one SCP03 `INITIALIZE UPDATE` payload into the typed response model.
 fn parse_initialize_update_scp03(input: &[u8]) -> Result<InitializeUpdateResponse> {
     if input.len() != 29 {
         return Err(JcimError::Gp(format!(

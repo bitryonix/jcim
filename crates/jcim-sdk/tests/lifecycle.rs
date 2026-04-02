@@ -24,6 +24,7 @@ use jcim_sdk::{
 
 #[tokio::test]
 async fn sdk_builds_and_installs_source_project_with_mock_card() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     if !socket_support::unix_domain_sockets_supported(
         "sdk_builds_and_installs_source_project_with_mock_card",
@@ -225,6 +226,7 @@ async fn sdk_builds_and_installs_source_project_with_mock_card() {
 
 #[tokio::test]
 async fn sdk_installs_direct_cap_with_mock_card() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     if !socket_support::unix_domain_sockets_supported("sdk_installs_direct_cap_with_mock_card") {
         return;
@@ -264,6 +266,7 @@ async fn sdk_installs_direct_cap_with_mock_card() {
 
 #[tokio::test]
 async fn sdk_owned_project_simulation_connection_round_trip() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     if !socket_support::unix_domain_sockets_supported(
         "sdk_owned_project_simulation_connection_round_trip",
@@ -321,6 +324,7 @@ async fn sdk_owned_project_simulation_connection_round_trip() {
 
 #[tokio::test]
 async fn sdk_attach_existing_simulation_connection_leaves_simulation_running() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     if !socket_support::unix_domain_sockets_supported(
         "sdk_attach_existing_simulation_connection_leaves_simulation_running",
@@ -391,6 +395,7 @@ async fn sdk_attach_existing_simulation_connection_leaves_simulation_running() {
 
 #[tokio::test]
 async fn sdk_runs_the_satochip_wallet_demo_on_a_project_backed_simulation() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     if !socket_support::unix_domain_sockets_supported(
         "sdk_runs_the_satochip_wallet_demo_on_a_project_backed_simulation",
@@ -465,6 +470,7 @@ fn temp_root(label: &str) -> PathBuf {
 
 #[tokio::test]
 async fn sdk_connect_or_start_replaces_mismatched_daemon_binary() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     if !socket_support::unix_domain_sockets_supported(
         "sdk_connect_or_start_replaces_mismatched_daemon_binary",
@@ -508,6 +514,7 @@ async fn sdk_connect_or_start_replaces_mismatched_daemon_binary() {
 
 #[tokio::test]
 async fn sdk_connect_or_start_survives_repeated_service_restarts() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     if !socket_support::unix_domain_sockets_supported(
         "sdk_connect_or_start_survives_repeated_service_restarts",
@@ -540,6 +547,7 @@ async fn sdk_connect_or_start_survives_repeated_service_restarts() {
 #[tokio::test]
 async fn sdk_connect_or_start_recovers_from_stale_runtime_metadata_and_surfaces_backend_start_failures()
  {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     if !socket_support::unix_domain_sockets_supported(
         "sdk_connect_or_start_recovers_from_stale_runtime_metadata_and_surfaces_backend_start_failures",
@@ -636,6 +644,7 @@ async fn sdk_connect_or_start_recovers_from_stale_runtime_metadata_and_surfaces_
 
 #[tokio::test]
 async fn sdk_connect_or_start_fails_closed_when_a_regular_file_blocks_the_socket() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     let root = temp_root("sdk-regular-file");
     let managed_paths = ManagedPaths::for_root(root.clone());
@@ -658,6 +667,7 @@ async fn sdk_connect_or_start_fails_closed_when_a_regular_file_blocks_the_socket
 
 #[tokio::test]
 async fn sdk_two_clients_can_drive_one_simulation_concurrently() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = lifecycle_lock().lock().await;
     if !socket_support::unix_domain_sockets_supported(
         "sdk_two_clients_can_drive_one_simulation_concurrently",

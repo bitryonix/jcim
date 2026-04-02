@@ -97,6 +97,7 @@ impl JcimClient {
         )))
     }
 
+    /// Return whether the currently connected daemon reports the same binary identity as this SDK.
     pub(super) async fn connected_service_matches_current_binary(&self) -> Result<bool> {
         let status = match self.service_status().await {
             Ok(status) => status,
@@ -110,6 +111,7 @@ impl JcimClient {
     }
 }
 
+/// Open one gRPC channel over the managed Unix-domain socket path.
 async fn connect_channel(
     socket_path: &Path,
 ) -> std::result::Result<Channel, tonic::transport::Error> {
@@ -122,21 +124,29 @@ async fn connect_channel(
         .await
 }
 
+/// Wrap one connection-target validation failure in the SDK bootstrap error type.
 pub(super) fn invalid_connection_target(message: String) -> JcimSdkError {
     JcimError::Unsupported(message).into()
 }
 
+/// One spawned daemon process plus the stderr log path used during bootstrap.
 struct SpawnedService {
+    /// Child process handle for the spawned daemon.
     child: std::process::Child,
+    /// Log file that captures daemon stderr during startup.
     stderr_log_path: PathBuf,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Stable on-disk identity used to compare a running daemon to the expected local binary.
 struct ServiceBinaryIdentity {
+    /// Resolved path to the daemon binary.
     path: PathBuf,
+    /// File-size and mtime fingerprint captured during startup.
     fingerprint: String,
 }
 
+/// Spawn one `jcimd` process against the managed socket and capture its stderr to disk.
 fn spawn_service(managed_paths: &ManagedPaths) -> Result<SpawnedService> {
     managed_paths.prepare_layout()?;
     let binary = service_binary_path()?;
@@ -162,6 +172,7 @@ fn spawn_service(managed_paths: &ManagedPaths) -> Result<SpawnedService> {
         .map_err(|error| JcimSdkError::Bootstrap(format!("unable to launch jcimd: {error}")))
 }
 
+/// Read the trimmed stderr log contents for a failed daemon bootstrap, if any were captured.
 fn read_bootstrap_log_tail(path: &Path) -> Option<String> {
     let contents = std::fs::read_to_string(path).ok()?;
     let trimmed = contents.trim();
@@ -172,6 +183,7 @@ fn read_bootstrap_log_tail(path: &Path) -> Option<String> {
     }
 }
 
+/// Remove stale runtime artifacts and stop a mismatched recorded daemon before restart.
 async fn prepare_service_restart(managed_paths: &ManagedPaths) -> Result<RestartPreparation> {
     let mut actions = Vec::new();
     let runtime_owner_dir = runtime_owner_dir(managed_paths);
@@ -221,6 +233,7 @@ async fn prepare_service_restart(managed_paths: &ManagedPaths) -> Result<Restart
     Ok(RestartPreparation { actions })
 }
 
+/// Load one runtime record only after validating that it is a regular file owned by the runtime dir owner.
 fn validated_runtime_record(
     runtime_metadata_path: &Path,
     owner_dir: &Path,
@@ -255,6 +268,7 @@ fn validated_runtime_record(
     }
 }
 
+/// Return the directory whose ownership governs trusted runtime metadata files.
 fn runtime_owner_dir(managed_paths: &ManagedPaths) -> PathBuf {
     managed_paths
         .runtime_metadata_path
@@ -263,6 +277,7 @@ fn runtime_owner_dir(managed_paths: &ManagedPaths) -> PathBuf {
         .unwrap_or_else(|| managed_paths.runtime_dir.clone())
 }
 
+/// Return whether the recorded daemon pid still appears to be running the recorded binary.
 fn recorded_process_matches_binary(record: &ServiceRuntimeRecord) -> bool {
     let output = match Command::new("ps")
         .arg("-p")
@@ -296,6 +311,7 @@ fn recorded_process_matches_binary(record: &ServiceRuntimeRecord) -> bool {
             && (command == expected_name || command.starts_with(&format!("{expected_name} "))))
 }
 
+/// Stop a recorded daemon process, escalating from `SIGTERM` to `SIGKILL` when needed.
 async fn terminate_recorded_service(record: &ServiceRuntimeRecord) -> Result<()> {
     signal_recorded_service(record.pid, "-TERM")?;
     for _ in 0..40 {
@@ -319,6 +335,7 @@ async fn terminate_recorded_service(record: &ServiceRuntimeRecord) -> Result<()>
     )))
 }
 
+/// Return whether the target pid still looks alive and not zombied on the current host.
 fn process_exists(pid: u32) -> bool {
     let output = match Command::new("ps")
         .arg("-p")
@@ -338,6 +355,7 @@ fn process_exists(pid: u32) -> bool {
     !state.is_empty() && !state.starts_with('Z')
 }
 
+/// Send one Unix signal to the recorded daemon pid and surface bootstrap-friendly errors.
 fn signal_recorded_service(pid: u32, signal: &str) -> Result<()> {
     let status = Command::new("kill")
         .arg(signal)
@@ -359,6 +377,7 @@ fn signal_recorded_service(pid: u32, signal: &str) -> Result<()> {
     Ok(())
 }
 
+/// Derive the local daemon binary identity used for mismatch detection and restart safety.
 fn local_service_binary_identity(path: &Path) -> Result<ServiceBinaryIdentity> {
     let metadata = std::fs::metadata(path)?;
     let modified = metadata
@@ -376,6 +395,7 @@ fn local_service_binary_identity(path: &Path) -> Result<ServiceBinaryIdentity> {
     })
 }
 
+/// Return whether the service-status response matches the expected daemon binary identity.
 fn service_status_matches_binary(
     status: &ServiceStatusSummary,
     identity: &ServiceBinaryIdentity,
@@ -385,6 +405,7 @@ fn service_status_matches_binary(
         && status.service_binary_fingerprint == identity.fingerprint
 }
 
+/// Resolve the daemon binary path used for local bootstrap and restart flows.
 fn service_binary_path() -> Result<PathBuf> {
     if let Some(path) = std::env::var_os("JCIM_SERVICE_BIN") {
         let path = PathBuf::from(path);
@@ -412,6 +433,7 @@ fn service_binary_path() -> Result<PathBuf> {
     )))
 }
 
+/// Build the fallback daemon binary search list relative to the current executable path.
 fn binary_candidates(current_exe: &Path, name: &str) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if let Some(parent) = current_exe.parent() {
@@ -433,11 +455,14 @@ fn binary_candidates(current_exe: &Path, name: &str) -> Vec<PathBuf> {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
+/// Description of the stale-runtime cleanup actions taken before a daemon restart.
 struct RestartPreparation {
+    /// Human-readable cleanup actions recorded during restart preparation.
     actions: Vec<String>,
 }
 
 impl RestartPreparation {
+    /// Render the recorded cleanup actions as one bootstrap error-context string.
     fn describe(&self) -> String {
         if self.actions.is_empty() {
             "no stale runtime artifacts required cleanup".to_string()

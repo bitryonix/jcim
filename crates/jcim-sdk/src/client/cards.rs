@@ -1,10 +1,10 @@
 use jcim_api::v0_3::card_service_client::CardServiceClient;
 use jcim_api::v0_3::install_cap_request::Input as InstallCapInput;
 use jcim_api::v0_3::{
-    CardApduRequest, CardManageChannelRequest, CardRawApduRequest,
-    CardSecureMessagingAdvanceRequest, CardSecureMessagingRequest, CardSelector, CardStatusRequest,
-    Empty, InstallCapRequest, ListAppletsRequest, ListPackagesRequest,
-    OpenCardGpSecureChannelRequest, ResetCardRequest,
+    CardApduRequest, CardManageChannelRequest, CardManageChannelResponse, CardRawApduRequest,
+    CardRawApduResponse, CardSecureMessagingAdvanceRequest, CardSecureMessagingRequest,
+    CardSecureMessagingResponse, CardSelector, CardStatusRequest, Empty, InstallCapRequest,
+    ListAppletsRequest, ListPackagesRequest, OpenCardGpSecureChannelRequest, ResetCardRequest,
 };
 
 use jcim_core::aid::Aid;
@@ -245,11 +245,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(ApduExchangeSummary {
-            command: CommandApdu::parse(&response.apdu)?,
-            response: response_apdu_from_proto(response.response)?,
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        raw_card_exchange_summary(response)
     }
 
     /// Open or close one logical channel using the configured default reader.
@@ -277,11 +273,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(ManageChannelSummary {
-            channel_number: response.channel_number.map(|value| value as u8),
-            response: response_apdu_from_proto(response.response)?,
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        card_manage_channel_summary(response)
     }
 
     /// Mark secure messaging as active using the configured default reader.
@@ -314,9 +306,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(SecureMessagingSummary {
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        card_secure_messaging_summary(response)
     }
 
     /// Advance the secure-messaging command counter using the configured default reader.
@@ -341,9 +331,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(SecureMessagingSummary {
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        card_secure_messaging_summary(response)
     }
 
     /// Clear the tracked secure-messaging state using the configured default reader.
@@ -363,9 +351,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(SecureMessagingSummary {
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        card_secure_messaging_summary(response)
     }
 
     /// Open one typed GP secure channel using the configured default reader.
@@ -417,9 +403,7 @@ impl JcimClient {
             })
             .await?
             .into_inner();
-        Ok(SecureMessagingSummary {
-            session_state: iso_session_state_from_proto(response.session_state)?,
-        })
+        card_secure_messaging_summary(response)
     }
 
     /// Send one ISO/IEC 7816 `SELECT` by application identifier using the configured default reader.
@@ -559,6 +543,7 @@ impl JcimClient {
         reset_summary_from_card_proto(response)
     }
 
+    /// Fetch one card status and reject empty reader names or absent cards for connection startup.
     pub(super) async fn validated_card_status_for_connection(
         &self,
         reader: ReaderRef,
@@ -581,5 +566,84 @@ impl JcimClient {
             return Err(invalid_connection_target(message));
         }
         Ok(status)
+    }
+}
+
+/// Decode one raw card APDU exchange response into the unified SDK summary type.
+fn raw_card_exchange_summary(response: CardRawApduResponse) -> Result<ApduExchangeSummary> {
+    Ok(ApduExchangeSummary {
+        command: CommandApdu::parse(&response.apdu)?,
+        response: response_apdu_from_proto(response.response)?,
+        session_state: iso_session_state_from_proto(response.session_state)?,
+    })
+}
+
+/// Decode one physical-card manage-channel response into the unified SDK summary type.
+fn card_manage_channel_summary(
+    response: CardManageChannelResponse,
+) -> Result<ManageChannelSummary> {
+    Ok(ManageChannelSummary {
+        channel_number: response.channel_number.map(|value| value as u8),
+        response: response_apdu_from_proto(response.response)?,
+        session_state: iso_session_state_from_proto(response.session_state)?,
+    })
+}
+
+/// Decode one physical-card secure-messaging response into the unified SDK summary type.
+fn card_secure_messaging_summary(
+    response: CardSecureMessagingResponse,
+) -> Result<SecureMessagingSummary> {
+    Ok(SecureMessagingSummary {
+        session_state: iso_session_state_from_proto(response.session_state)?,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use jcim_api::v0_3::{IsoSessionStateInfo, ResponseApduFrame};
+
+    use super::*;
+
+    #[test]
+    fn raw_card_exchange_summary_decodes_command_and_response() {
+        let summary = raw_card_exchange_summary(CardRawApduResponse {
+            apdu: vec![0x00, 0xA4, 0x04, 0x00, 0x00],
+            response: Some(ResponseApduFrame {
+                data: Vec::new(),
+                sw: 0x9000,
+                ..ResponseApduFrame::default()
+            }),
+            session_state: Some(IsoSessionStateInfo::default()),
+        })
+        .expect("decode raw card exchange");
+
+        assert_eq!(summary.command.to_bytes(), [0x00, 0xA4, 0x04, 0x00, 0x00]);
+        assert_eq!(summary.response.sw, 0x9000);
+    }
+
+    #[test]
+    fn card_manage_channel_summary_decodes_channel_and_session() {
+        let summary = card_manage_channel_summary(CardManageChannelResponse {
+            channel_number: Some(3),
+            response: Some(ResponseApduFrame {
+                data: Vec::new(),
+                sw: 0x9000,
+                ..ResponseApduFrame::default()
+            }),
+            session_state: Some(IsoSessionStateInfo::default()),
+        })
+        .expect("decode channel summary");
+
+        assert_eq!(summary.channel_number, Some(3));
+        assert_eq!(summary.response.sw, 0x9000);
+    }
+
+    #[test]
+    fn card_secure_messaging_summary_defaults_missing_session_state() {
+        let summary = card_secure_messaging_summary(CardSecureMessagingResponse {
+            session_state: None,
+        })
+        .expect("missing session state should decode to default");
+        assert_eq!(summary.session_state, IsoSessionState::default());
     }
 }

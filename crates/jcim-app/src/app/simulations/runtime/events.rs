@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use super::*;
 
+/// Build the retained starting record inserted before async backend startup begins.
 pub(super) fn starting_simulation_record(prepared: &PreparedSimulation) -> SimulationRecord {
     let mut recent_events = VecDeque::new();
     remember_event(
@@ -29,6 +30,7 @@ pub(super) fn starting_simulation_record(prepared: &PreparedSimulation) -> Simul
     }
 }
 
+/// Reframe startup errors with simulation identity so callers retain actionable context.
 pub(super) fn annotate_simulation_start_error(
     prepared: &PreparedSimulation,
     error: JcimError,

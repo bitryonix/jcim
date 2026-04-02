@@ -1,16 +1,24 @@
 //! Local JCIM application services.
-#![allow(clippy::missing_docs_in_private_items)]
-// This module is the dense internal orchestration layer for the transport-neutral app service.
-// We keep the public façade documented and avoid line-by-line docs on private glue code here.
 
+/// Build orchestration and artifact lookup helpers.
 mod builds;
+/// Physical-card service helpers layered on top of the adapter boundary.
 mod cards;
+/// Event recording helpers for simulations and builds.
 mod events;
+/// Project creation, lookup, and cleanup helpers.
 mod projects;
+/// Project, simulation, reader, and path selector helpers.
 mod selectors;
+/// Simulation query and runtime-control helpers.
 mod simulations;
+/// Shared in-memory application state and store helpers.
 mod state;
+/// Machine-local system setup and doctor helpers.
 mod system;
+/// Test-only application fixture helpers.
+#[cfg(test)]
+mod testsupport;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -113,6 +121,7 @@ impl JcimApp {
     }
 }
 
+/// Capture the current executable path plus a simple stable fingerprint for runtime records.
 fn current_service_binary_identity() -> Result<(PathBuf, String)> {
     let path = std::env::current_exe()?;
     let metadata = std::fs::metadata(&path)?;
@@ -131,7 +140,9 @@ fn current_service_binary_identity() -> Result<(PathBuf, String)> {
     ))
 }
 
+/// Local formatter for backend health states that appear in user-facing summaries.
 trait BackendHealthStatusExt {
+    /// Convert one backend health value into the stable lowercase label used by JCIM output.
     fn status_string(self) -> &'static str;
 }
 
@@ -146,6 +157,7 @@ impl BackendHealthStatusExt for BackendHealthStatus {
     }
 }
 
+/// Build artifact summaries for the subset of recorded outputs surfaced by the local API.
 fn artifacts_from_metadata(
     project_root: &Path,
     metadata: &ArtifactMetadata,
@@ -160,6 +172,7 @@ fn artifacts_from_metadata(
     artifacts
 }
 
+/// Resolve one required artifact path and fail closed when the artifact was never recorded.
 fn required_artifact_path(
     project_root: &Path,
     relative: Option<&PathBuf>,
@@ -169,10 +182,12 @@ fn required_artifact_path(
     Ok(project_root.join(relative))
 }
 
+/// Validate or prepare the host simulator environment before a backend startup attempt.
 fn ensure_host_simulator_environment(_bundle_dir: &Path, _profile_id: CardProfileId) -> Result<()> {
     Ok(())
 }
 
+/// Ensure recorded simulator artifacts still exist before trying to start a simulation.
 fn validate_simulation_artifacts(
     project_root: &Path,
     metadata: ArtifactMetadata,
@@ -214,10 +229,12 @@ fn validate_simulation_artifacts(
     Ok(metadata)
 }
 
+/// Return the default bundle root used when user configuration does not override it.
 fn default_bundle_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../bundled-backends")
 }
 
+/// Map raw CLI and RPC security-level bytes onto typed GlobalPlatform security levels.
 fn gp_security_level(value: u8) -> globalplatform::SecurityLevel {
     match value {
         0x00 => globalplatform::SecurityLevel::None,
@@ -229,6 +246,7 @@ fn gp_security_level(value: u8) -> globalplatform::SecurityLevel {
     }
 }
 
+/// Derive a lightweight host challenge for the mock GP secure-channel workflow.
 fn gp_host_challenge() -> [u8; 8] {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -241,6 +259,7 @@ fn gp_host_challenge() -> [u8; 8] {
     challenge
 }
 
+/// Shorten long APDU hex strings before they are stored in bounded event logs.
 fn truncate_hex(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.len() <= 16 {
@@ -250,6 +269,7 @@ fn truncate_hex(value: &str) -> String {
     }
 }
 
+/// Split a fully qualified Java class name into package and leaf-class components.
 fn split_class_name(value: &str) -> Result<(String, String)> {
     if let Some((package_name, class_name)) = value.rsplit_once('.') {
         if class_name.is_empty() {
@@ -263,6 +283,7 @@ fn split_class_name(value: &str) -> Result<(String, String)> {
     }
 }
 
+/// Render the starter Java Card applet source for a newly created JCIM project.
 fn sample_applet_source(package_name: &str, class_name: &str) -> String {
     let mut source = String::new();
     if !package_name.is_empty() {

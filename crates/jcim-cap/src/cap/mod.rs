@@ -1,11 +1,14 @@
 //! Pure-Rust CAP/JAR parsing utilities.
 
-#![allow(clippy::missing_docs_in_private_items)]
-
+/// ZIP archive readers for CAP/JAR inputs.
 mod archive;
+/// CAP manifest and component parsers.
 mod components;
+/// Small CAP-specific error constructors.
 mod error;
+/// Top-level CAP parsing orchestration.
 mod parser;
+/// Card-profile compatibility validation helpers.
 mod validation;
 
 use std::collections::BTreeMap;
@@ -95,6 +98,8 @@ impl CapPackage {
     }
 }
 
+// Test fixtures intentionally optimize for compact synthetic archives over standalone rustdoc.
+#[allow(clippy::missing_docs_in_private_items)]
 #[cfg(test)]
 mod tests {
     use std::io::Write;

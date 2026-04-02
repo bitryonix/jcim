@@ -191,3 +191,99 @@ impl JcimApp {
         self.close_simulation_secure_messaging(selector).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::testsupport::{
+        acquire_local_service_lock, load_test_app, project_selector, simulation_selector, temp_root,
+    };
+
+    #[tokio::test]
+    async fn apdu_exchange_and_channel_management_record_simulation_events() {
+        let _service_lock = acquire_local_service_lock();
+        let root = temp_root("sim-session-events");
+        let app = load_test_app(&root);
+        let project_root = root.join("demo");
+        app.create_project("Demo", &project_root)
+            .expect("create project");
+
+        let simulation = app
+            .start_project_simulation(&project_selector(&project_root))
+            .await
+            .expect("start simulation");
+        let selector = simulation_selector(simulation.simulation_id.clone());
+        let applet_aid = Aid::from_hex("F00000000101").expect("applet aid");
+
+        let exchange = app
+            .transmit_command(&selector, &iso7816::select_by_name(&applet_aid))
+            .await
+            .expect("transmit command");
+        let channel = app
+            .manage_simulation_channel(&selector, true, None)
+            .await
+            .expect("open channel");
+        let events = app.simulation_events(&selector).expect("simulation events");
+
+        assert_eq!(exchange.response.sw, 0x9000);
+        assert_eq!(channel.channel_number, Some(1));
+        assert!(
+            events
+                .iter()
+                .any(|event| event.message.contains("apdu exchange"))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|event| event.message.contains("opened logical channel 1"))
+        );
+
+        let _ = app.stop_simulation(&selector).await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn secure_messaging_lifecycle_on_simulation_updates_tracked_session_state() {
+        let _service_lock = acquire_local_service_lock();
+        let root = temp_root("sim-gp");
+        let app = load_test_app(&root);
+        let project_root = root.join("demo");
+        app.create_project("Demo", &project_root)
+            .expect("create project");
+
+        let simulation = app
+            .start_project_simulation(&project_selector(&project_root))
+            .await
+            .expect("start simulation");
+        let selector = simulation_selector(simulation.simulation_id.clone());
+
+        let summary = app
+            .open_simulation_secure_messaging(
+                &selector,
+                Some(SecureMessagingProtocol::Scp03),
+                Some(0x03),
+                Some("sim-session".to_string()),
+            )
+            .await
+            .expect("open secure messaging");
+        let session_state = app
+            .simulation_session_state(&selector)
+            .expect("session state");
+
+        assert!(summary.session_state.secure_messaging.active);
+        assert_eq!(session_state, summary.session_state);
+        assert_eq!(
+            session_state.secure_messaging.session_id,
+            Some("sim-session".to_string())
+        );
+
+        let closed = app
+            .close_gp_secure_channel_on_simulation(&selector)
+            .await
+            .expect("close secure messaging through gp alias");
+        assert!(!closed.session_state.secure_messaging.active);
+
+        let _ = app.stop_simulation(&selector).await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+}

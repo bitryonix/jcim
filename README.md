@@ -186,6 +186,9 @@ Machine-local settings live outside the project under a split managed layout:
 - Local `cargo audit`, `cargo deny`, and raw `cargo metadata` checks can still depend on network
   access and preinstalled subcommands. CI remains the canonical release gate when local sandboxes
   deny crates.io access.
+- When `cargo-llvm-cov` is installed locally, contributors may run
+  `cargo llvm-cov --workspace --all-features --summary-only` as a non-blocking coverage audit.
+  That report is informational only and is not a required release gate.
 - Bundled and vendored runtime updates under `third_party/` or `bundled-backends/` must update
   `third_party/THIRD_PARTY.toml` in the same change set so provenance, license, checksum, and
   cadence data stay in sync with the shipped artifacts.

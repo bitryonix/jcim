@@ -1,5 +1,6 @@
 use super::*;
 
+/// Parse package inventory lines emitted by helper-tool and normalize AIDs.
 pub(super) fn parse_package_inventory(lines: &[String]) -> Vec<CardPackageSummary> {
     lines
         .iter()
@@ -8,6 +9,7 @@ pub(super) fn parse_package_inventory(lines: &[String]) -> Vec<CardPackageSummar
         .collect()
 }
 
+/// Parse applet inventory lines emitted by helper-tool and normalize AIDs.
 pub(super) fn parse_applet_inventory(lines: &[String]) -> Vec<CardAppletSummary> {
     lines
         .iter()
@@ -16,6 +18,7 @@ pub(super) fn parse_applet_inventory(lines: &[String]) -> Vec<CardAppletSummary>
         .collect()
 }
 
+/// Parse one prefixed inventory line into a normalized AID plus human-readable description.
 fn parse_inventory_item(line: &str, prefix: &str) -> Option<(String, String)> {
     let rest = line.trim().strip_prefix(prefix)?.trim();
     let mut parts = rest.split_whitespace();

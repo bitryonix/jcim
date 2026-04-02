@@ -2,6 +2,9 @@
 
 #![forbid(unsafe_code)]
 
+#[path = "../../../tests/support/socket.rs"]
+mod socket_support;
+
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -17,6 +20,7 @@ fn app_lock() -> &'static tokio::sync::Mutex<()> {
 
 #[test]
 fn project_build_and_registry_behavior_is_characterized() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let root = temp_root("project-build");
     let project_dir = root.join("demo");
     let managed_paths = ManagedPaths::for_root(root.clone());
@@ -77,6 +81,7 @@ fn project_build_and_registry_behavior_is_characterized() {
 
 #[tokio::test]
 async fn simulation_lifecycle_behavior_is_characterized() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = app_lock().lock().await;
     let root = temp_root("simulation");
     let project_dir = root.join("demo");
@@ -189,6 +194,7 @@ async fn simulation_lifecycle_behavior_is_characterized() {
 
 #[tokio::test]
 async fn failed_simulation_start_is_retained_and_recoverable() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = app_lock().lock().await;
     let root = temp_root("simulation-failure");
     let project_dir = root.join("demo");
@@ -251,6 +257,7 @@ async fn failed_simulation_start_is_retained_and_recoverable() {
 
 #[tokio::test]
 async fn mock_card_session_and_typed_iso_gp_behavior_are_characterized() {
+    let _service_lock = socket_support::acquire_cross_process_lock("local-service");
     let _guard = app_lock().lock().await;
     let root = temp_root("mock-card");
     let project_dir = root.join("demo");

@@ -1,7 +1,5 @@
 //! Public typed Rust models for the JCIM SDK.
 
-#![allow(clippy::missing_docs_in_private_items)]
-
 use std::path::{Path, PathBuf};
 
 use jcim_core::aid::Aid;
@@ -82,6 +80,7 @@ impl ReaderRef {
         Self::Named(reader_name.into())
     }
 
+    /// Return the explicit reader name when this selector is not the default-reader sentinel.
     pub(crate) fn as_deref(&self) -> Option<&str> {
         match self {
             Self::Default => None,
