@@ -2,6 +2,7 @@
 name = "jcim-backends"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Backend trait and external simulator adapter for JCIM"
 readme = "README.md"
 

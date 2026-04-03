@@ -2,6 +2,7 @@
 name = "jcimd"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Local gRPC control plane for JCIM 0.3"
 readme = "README.md"
 

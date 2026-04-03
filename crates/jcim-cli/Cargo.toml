@@ -2,6 +2,7 @@
 name = "jcim-cli"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Task-oriented CLI for JCIM 0.3"
 readme = "README.md"
 

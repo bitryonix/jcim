@@ -1,6 +1,6 @@
 //! Stable `--json` contract coverage for representative CLI flows.
 
-#![forbid(unsafe_code)]
-
-#[path = "json_contract/mod.rs"]
-mod suite;
+mod basics;
+mod card_surface;
+mod managed_surface;
+mod support;

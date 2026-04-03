@@ -19,9 +19,14 @@ preserve that center of gravity and prefer small, reviewable changes over broad 
 Typical setup:
 
 ```sh
+rustup show active-toolchain
 cargo run -p jcim-cli -- system setup
 cargo run -p jcim-cli -- system doctor
 ```
+
+JCIM pins the local toolchain with [`rust-toolchain.toml`](rust-toolchain.toml) and
+`workspace.package.rust-version = "1.93.1"`. Run local verification with Rust `1.93.1` so your
+compiler, clippy, and rustdoc output match CI and release preflight.
 
 Recommended verification before opening a PR:
 
@@ -55,6 +60,10 @@ cargo test -p jcim-sdk --test lifecycle -- --test-threads=1
 cargo test -p jcimd --test runtime_cleanup -- --test-threads=1
 cargo test -p jcim-config --test third_party_governance
 ```
+
+The Satochip-backed build and lifecycle coverage can still emit upstream Java warnings from the
+example sources during otherwise green runs. Treat those warnings as expected noise unless the test
+status flips or the warning set materially changes.
 
 For the final publishing pass, also run:
 

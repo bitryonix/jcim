@@ -2,6 +2,7 @@
 name = "jcim-core"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Core runtime, CAP parsing, IPC, and configuration types for JCIM"
 readme = "README.md"
 

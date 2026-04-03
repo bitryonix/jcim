@@ -2,6 +2,7 @@
 name = "jcim-cap"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "CAP parsing and export validation for JCIM"
 readme = "README.md"
 

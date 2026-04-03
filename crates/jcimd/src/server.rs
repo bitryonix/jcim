@@ -155,6 +155,7 @@ fn prepare_socket_for_bind(socket_path: &Path) -> Result<(), JcimError> {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
     use std::os::unix::net::UnixListener;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -201,6 +202,11 @@ mod tests {
 
     #[test]
     fn prepare_socket_for_bind_refuses_replacing_live_sockets() {
+        if !unix_domain_sockets_supported("prepare_socket_for_bind_refuses_replacing_live_sockets")
+        {
+            return;
+        }
+
         let root = temp_root("live-socket");
         std::fs::create_dir_all(&root).expect("create root");
         let socket_path = root.join("jcimd.sock");
@@ -222,5 +228,28 @@ mod tests {
             .expect("time")
             .as_nanos();
         PathBuf::from("/tmp").join(format!("jcimd-server-{label}-{unique:x}"))
+    }
+
+    fn unix_domain_sockets_supported(test_name: &str) -> bool {
+        let probe_path = temp_root(test_name).join("probe.sock");
+        std::fs::create_dir_all(probe_path.parent().expect("probe parent"))
+            .expect("create probe root");
+        match UnixListener::bind(&probe_path) {
+            Ok(listener) => {
+                drop(listener);
+                let _ = std::fs::remove_file(&probe_path);
+                true
+            }
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+                eprintln!(
+                    "skipping {test_name}: this environment denies Unix-domain socket listeners ({error})"
+                );
+                false
+            }
+            Err(error) => panic!(
+                "failed to probe Unix-domain socket support for {test_name} at {}: {error}",
+                probe_path.display()
+            ),
+        }
     }
 }

@@ -2,6 +2,7 @@
 name = "jcim-app"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Transport-neutral application core for JCIM 0.3"
 readme = "README.md"
 

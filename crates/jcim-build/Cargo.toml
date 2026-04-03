@@ -2,6 +2,7 @@
 name = "jcim-build"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Java Card source and artifact build orchestration for JCIM"
 readme = "README.md"
 
