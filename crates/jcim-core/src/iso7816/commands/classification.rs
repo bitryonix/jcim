@@ -21,30 +21,55 @@ pub enum CommandDomain {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CommandKind {
+    /// ISO `SELECT` command.
     Select,
+    /// ISO `MANAGE CHANNEL` command.
     ManageChannel,
+    /// ISO `GET RESPONSE` command.
     GetResponse,
+    /// ISO `READ BINARY` command.
     ReadBinary,
+    /// ISO `WRITE BINARY` command.
     WriteBinary,
+    /// ISO `UPDATE BINARY` command.
     UpdateBinary,
+    /// ISO `ERASE BINARY` command.
     EraseBinary,
+    /// ISO `READ RECORD` command.
     ReadRecord,
+    /// ISO `UPDATE RECORD` command.
     UpdateRecord,
+    /// ISO `APPEND RECORD` command.
     AppendRecord,
+    /// ISO `SEARCH RECORD` command.
     SearchRecord,
+    /// ISO `GET DATA` command.
     GetData,
+    /// ISO `PUT DATA` command.
     PutData,
+    /// ISO `VERIFY` command.
     Verify,
+    /// ISO `CHANGE REFERENCE DATA` command.
     ChangeReferenceData,
+    /// ISO `RESET RETRY COUNTER` command.
     ResetRetryCounter,
+    /// ISO `INTERNAL AUTHENTICATE` command.
     InternalAuthenticate,
+    /// ISO `EXTERNAL AUTHENTICATE` command.
     ExternalAuthenticate,
+    /// ISO `GET CHALLENGE` command.
     GetChallenge,
+    /// ISO `ENVELOPE` command.
     Envelope,
+    /// GlobalPlatform `GET STATUS` command.
     GpGetStatus,
+    /// GlobalPlatform `SET STATUS` command.
     GpSetStatus,
+    /// GlobalPlatform `INITIALIZE UPDATE` command.
     GpInitializeUpdate,
+    /// GlobalPlatform `EXTERNAL AUTHENTICATE` command.
     GpExternalAuthenticate,
+    /// Unrecognized or intentionally opaque command.
     Opaque,
 }
 

@@ -204,6 +204,7 @@ Machine-local settings live outside the project under a split managed layout:
 - Improvement roadmap: [`docs/improvement-roadmap.md`](docs/improvement-roadmap.md)
 - Architecture overview: [`docs/architecture-overview.md`](docs/architecture-overview.md)
 - Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Security policy: [`SECURITY.md`](SECURITY.md)
 - Daemon troubleshooting: [`docs/troubleshooting-daemon.md`](docs/troubleshooting-daemon.md)
 - Third-party refresh process: [`docs/third-party-refresh.md`](docs/third-party-refresh.md)

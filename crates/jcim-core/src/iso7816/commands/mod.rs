@@ -1,6 +1,10 @@
+/// ISO/IEC 7816 command builders for maintained interindustry instructions.
 mod builders;
+/// High-level command classification helpers used by logs and APIs.
 mod classification;
+/// Instruction and class-byte constants shared by the typed command helpers.
 mod constants;
+/// Structured command decoding models and round-trip helpers.
 mod decoded;
 
 pub use builders::*;
@@ -8,6 +12,7 @@ pub use classification::*;
 pub use constants::*;
 pub use decoded::*;
 
+/// Command-decoding regression tests.
 #[cfg(test)]
 mod tests {
     use crate::aid::Aid;

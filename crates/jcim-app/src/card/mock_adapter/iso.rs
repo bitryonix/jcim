@@ -1,3 +1,5 @@
+#![allow(clippy::missing_docs_in_private_items)]
+
 use super::*;
 
 use super::state::{mock_deterministic_bytes, mock_selected_file_id};

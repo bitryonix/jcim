@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 const CLI_JSON_SCHEMA_VERSION: &str = "jcim-cli.v2";
 
 /// Build the stable JSON error envelope payload without rendering it to a string yet.
-pub(super) fn json_error_value(message: &str) -> Value {
+pub(crate) fn json_error_value(message: &str) -> Value {
     json!({
         "schema_version": CLI_JSON_SCHEMA_VERSION,
         "kind": "error",
@@ -13,7 +13,7 @@ pub(super) fn json_error_value(message: &str) -> Value {
 }
 
 /// Wrap one JSON payload in the maintained CLI schema/version envelope.
-pub(super) fn json_envelope(kind: &str, payload: Value) -> Value {
+pub(crate) fn json_envelope(kind: &str, payload: Value) -> Value {
     let mut envelope = match payload {
         Value::Object(object) => object,
         other => {
@@ -31,12 +31,12 @@ pub(super) fn json_envelope(kind: &str, payload: Value) -> Value {
 }
 
 /// Render one CLI error message as the stable JSON error envelope.
-pub(super) fn json_error(message: &str) -> String {
+pub(crate) fn json_error(message: &str) -> String {
     json_error_value(message).to_string()
 }
 
 /// Render one JSON envelope to stdout for machine-readable CLI output.
-pub(super) fn print_json_value(kind: &str, payload: Value) {
+pub(crate) fn print_json_value(kind: &str, payload: Value) {
     println!("{}", json_envelope(kind, payload));
 }
 

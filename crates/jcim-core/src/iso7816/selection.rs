@@ -20,9 +20,13 @@ pub enum FileSelection {
 /// Structured `SELECT` command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SelectCommand {
+    /// First selection-parameter byte controlling the selection method.
     pub p1: u8,
+    /// Second selection-parameter byte controlling occurrence and return data.
     pub p2: u8,
+    /// Decoded file or application target requested by the command.
     pub target: FileSelection,
+    /// Optional expected response length advertised by the command.
     pub ne: Option<usize>,
 }
 

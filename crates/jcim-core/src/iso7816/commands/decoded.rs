@@ -11,130 +11,190 @@ use super::constants::*;
 /// Structured `MANAGE CHANNEL` command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ManageChannelCommand {
+    /// Whether the command opens rather than closes a logical channel.
     pub open: bool,
+    /// Explicit logical channel referenced by a close request, when present.
     pub channel_number: Option<u8>,
+    /// Optional expected response length advertised by the command.
     pub ne: Option<usize>,
 }
 
 /// Structured `GET RESPONSE` command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GetResponseCommand {
+    /// Requested response length in bytes.
     pub expected_length: usize,
 }
 
 /// Structured command operating on one binary offset.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BinaryReadCommand {
+    /// High offset byte carried in P1.
     pub p1: u8,
+    /// Low offset byte carried in P2.
     pub p2: u8,
+    /// Optional expected response length advertised by the command.
     pub ne: Option<usize>,
 }
 
 /// Structured binary write/update command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BinaryWriteCommand {
+    /// High offset byte carried in P1.
     pub p1: u8,
+    /// Low offset byte carried in P2.
     pub p2: u8,
+    /// Bytes written to the selected binary file.
     pub data: Vec<u8>,
 }
 
 /// Structured erase binary command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EraseBinaryCommand {
+    /// High offset byte carried in P1.
     pub p1: u8,
+    /// Low offset byte carried in P2.
     pub p2: u8,
+    /// Optional erase-pattern payload supplied by the caller.
     pub data: Vec<u8>,
 }
 
 /// Structured record read command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RecordReadCommand {
+    /// Record number encoded in P1.
     pub record_number: u8,
+    /// Record reference-control byte encoded in P2.
     pub reference_control: u8,
+    /// Optional expected response length advertised by the command.
     pub ne: Option<usize>,
 }
 
 /// Structured record update or append command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RecordWriteCommand {
+    /// Record number encoded in P1.
     pub record_number: u8,
+    /// Record reference-control byte encoded in P2.
     pub reference_control: u8,
+    /// Bytes written or appended to the record file.
     pub data: Vec<u8>,
 }
 
 /// Structured search-record command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SearchRecordCommand {
+    /// Record number encoded in P1.
     pub record_number: u8,
+    /// Record reference-control byte encoded in P2.
     pub reference_control: u8,
+    /// Search-pattern payload supplied by the caller.
     pub data: Vec<u8>,
+    /// Optional expected response length advertised by the command.
     pub ne: Option<usize>,
 }
 
 /// Structured GET/PUT DATA command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataCommand {
+    /// First data-object selector byte.
     pub p1: u8,
+    /// Second data-object selector byte.
     pub p2: u8,
+    /// Encoded data payload for write-style commands.
     pub data: Vec<u8>,
+    /// Optional expected response length for read-style commands.
     pub ne: Option<usize>,
 }
 
 /// Structured security-reference-data command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ReferenceDataCommand {
+    /// Command-specific control byte carried in P1.
     pub p1: u8,
+    /// Security-reference identifier carried in P2.
     pub reference: u8,
+    /// Reference-data payload bytes supplied by the caller.
     pub data: Vec<u8>,
 }
 
 /// Structured authenticate command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AuthenticateCommand {
+    /// First authenticate control byte.
     pub p1: u8,
+    /// Second authenticate control byte.
     pub p2: u8,
+    /// Authentication payload bytes.
     pub data: Vec<u8>,
+    /// Optional expected response length advertised by the command.
     pub ne: Option<usize>,
 }
 
 /// Structured `GET CHALLENGE` command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GetChallengeCommand {
+    /// Requested random-challenge length in bytes.
     pub expected_length: usize,
 }
 
 /// Structured `ENVELOPE` command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EnvelopeCommand {
+    /// First envelope control byte.
     pub p1: u8,
+    /// Second envelope control byte.
     pub p2: u8,
+    /// Encapsulated payload bytes.
     pub data: Vec<u8>,
+    /// Optional expected response length advertised by the command.
     pub ne: Option<usize>,
 }
 
 /// One decoded ISO/IEC 7816 command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum IsoCommand {
+    /// Structured `SELECT` command.
     Select(SelectCommand),
+    /// Structured `MANAGE CHANNEL` command.
     ManageChannel(ManageChannelCommand),
+    /// Structured `GET RESPONSE` command.
     GetResponse(GetResponseCommand),
+    /// Structured `READ BINARY` command.
     ReadBinary(BinaryReadCommand),
+    /// Structured `WRITE BINARY` command.
     WriteBinary(BinaryWriteCommand),
+    /// Structured `UPDATE BINARY` command.
     UpdateBinary(BinaryWriteCommand),
+    /// Structured `ERASE BINARY` command.
     EraseBinary(EraseBinaryCommand),
+    /// Structured `READ RECORD` command.
     ReadRecord(RecordReadCommand),
+    /// Structured `UPDATE RECORD` command.
     UpdateRecord(RecordWriteCommand),
+    /// Structured `APPEND RECORD` command.
     AppendRecord(RecordWriteCommand),
+    /// Structured `SEARCH RECORD` command.
     SearchRecord(SearchRecordCommand),
+    /// Structured `GET DATA` command.
     GetData(DataCommand),
+    /// Structured `PUT DATA` command.
     PutData(DataCommand),
+    /// Structured `VERIFY` command.
     Verify(ReferenceDataCommand),
+    /// Structured `CHANGE REFERENCE DATA` command.
     ChangeReferenceData(ReferenceDataCommand),
+    /// Structured `RESET RETRY COUNTER` command.
     ResetRetryCounter(ReferenceDataCommand),
+    /// Structured `INTERNAL AUTHENTICATE` command.
     InternalAuthenticate(AuthenticateCommand),
+    /// Structured `EXTERNAL AUTHENTICATE` command.
     ExternalAuthenticate(AuthenticateCommand),
+    /// Structured `GET CHALLENGE` command.
     GetChallenge(GetChallengeCommand),
+    /// Structured `ENVELOPE` command.
     Envelope(EnvelopeCommand),
+    /// Raw APDU preserved when JCIM does not recognize the command.
     Opaque(CommandApdu),
 }
 

@@ -24,6 +24,7 @@ Internal refactors that preserve the existing surface do not require a public ve
 - run JSON contract, docs smoke, SDK docs examples, descriptor compatibility, app
   characterization, SDK lifecycle, daemon runtime-cleanup, and third-party governance tests
 - keep `cargo audit` and `cargo deny check` green
+- update `CHANGELOG.md` for maintained user-visible or compatibility-relevant changes
 - update docs and migration notes for any user-visible behavior change
 - verify `third_party/THIRD_PARTY.toml` matches committed bundled assets
 

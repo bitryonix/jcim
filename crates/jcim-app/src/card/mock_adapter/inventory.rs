@@ -1,3 +1,5 @@
+#![allow(clippy::missing_docs_in_private_items)]
+
 use super::*;
 
 use super::state::{lock_poisoned, mock_reset_session_state};

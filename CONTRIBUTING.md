@@ -24,9 +24,10 @@ cargo run -p jcim-cli -- system setup
 cargo run -p jcim-cli -- system doctor
 ```
 
-JCIM pins the local toolchain with [`rust-toolchain.toml`](rust-toolchain.toml) and
-`workspace.package.rust-version = "1.93.1"`. Run local verification with Rust `1.93.1` so your
-compiler, clippy, and rustdoc output match CI and release preflight.
+JCIM tracks the stable Rust channel through [`rust-toolchain.toml`](rust-toolchain.toml). Use the
+installed stable toolchain for local verification so your compiler, clippy, and rustdoc output
+match CI and release preflight. The workspace still records a `rust-version` compatibility floor in
+[`Cargo.toml`](Cargo.toml) for consumers that need an explicit minimum compiler version.
 
 Recommended verification before opening a PR:
 
@@ -43,10 +44,9 @@ The clippy pass now enforces both public-doc and maintained private-item rustdoc
 of the normal `-D warnings` bar. Approved exceptions are intentionally narrow:
 
 - generated protobuf bindings in `crates/jcim-api/src/lib.rs`
-- the standards-shaped ISO 7816 surface in `crates/jcim-core/src/iso7816/mod.rs`
-- support-code internals such as example-only code, `#[cfg(test)]` modules, the backend JSON
-  wire-mirror helpers in `crates/jcim-backends/src/backend/reply.rs`, and the mock physical-card
-  adapter internals
+- example-only code and `#[cfg(test)]` support modules
+- narrowly scoped support-code internals such as the backend JSON wire-mirror helpers in
+  `crates/jcim-backends/src/backend/reply.rs` and the mock physical-card adapter leaf modules
 
 Targeted contract/governance checks that are expected to stay review-blocking:
 
@@ -80,7 +80,8 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-it
 - Treat CLI `--json` output as a stable automation surface for maintained command families.
 - Keep `jcim.toml`, `config.toml`, `projects.toml`, and `jcimd.runtime.toml` stable unless the
   change is versioned and documented.
-- If a change would alter public behavior, update docs and migration notes in the same change set.
+- If a change would alter public behavior, update `CHANGELOG.md`, docs, and migration notes in the
+  same change set.
 
 ## Third-Party And Bundled Assets
 
@@ -102,4 +103,5 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-it
 - Keep diffs tightly scoped.
 - Add or update tests for bug fixes and behavioral refactors.
 - Keep docs aligned with implementation and CI.
+- Record maintained user-visible or compatibility-relevant changes in [`CHANGELOG.md`](CHANGELOG.md).
 - Prefer moving code along real responsibility seams, not arbitrary file splitting.
